@@ -1,0 +1,12 @@
+{
+  "id": "lintapple",
+  "repo": "https://github.com/gholtzap/lintapple",
+  "commit": "9eee0efa47f29b71251a13677fb54667a70db9fa",
+  "expect": { "unsupported": false, "minTools": 1, "maxTools": 1, "gpu": "none", "requiresSystem": ["node"] },
+  "requests": [
+    { "text": "Audit the rendered UI at http://localhost:3000 and return a JSON report of design-rule violations.", "tool": "(lint|audit|check)", "args": { "url": "^http://localhost:3000/?$" } },
+    { "text": "Check the design rules on http://localhost:4173, waiting for the visible selector [data-app-ready] before measuring.", "tool": "(lint|audit|check)", "args": { "url": "^http://localhost:4173/?$", "ready": "^\\[data-app-ready\\]$" } },
+    { "text": "Check http://localhost:8080 using the custom UI policy in strict-policy.json.", "tool": "(lint|audit|check)", "args": { "url": "^http://localhost:8080/?$", "config": "(^|/)strict-policy\\.json$" } },
+    { "text": "Calculate 19 times 23.", "tool": null }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "color-matcher",
+  "repo": "https://github.com/hahnec/color-matcher",
+  "commit": "908a64034f3bd218570a7e9ff6a1b01e0e4633c8",
+  "expect": {
+    "unsupported": false,
+    "minTools": 1,
+    "maxTools": 2,
+    "forbiddenFlags": ["-w", "--win"],
+    "gpu": "none"
+  },
+  "requests": [
+    { "text": "Make target.png match the colors of reference.png.", "tool": "(color|match|transfer)", "args": { "src": "(^|/)target\\.png$", "ref": "(^|/)reference\\.png$" } },
+    { "text": "Transfer the palette of sunset.png to portrait.png using the reinhard method.", "tool": "(color|match|transfer)", "args": { "src": "(^|/)portrait\\.png$", "ref": "(^|/)sunset\\.png$", "method": "^reinhard$" } },
+    { "text": "Batch color-match all images in frames/ to reference.png using hm-mkl-hm.", "tool": "(color|match|transfer)", "args": { "src": "(^|/)frames/?$", "ref": "(^|/)reference\\.png$", "method": "^hm-mkl-hm$" } },
+    { "text": "Explain how binary search works.", "tool": null }
+  ]
+}

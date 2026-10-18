@@ -1,0 +1,15 @@
+.superpowers/
+.worktrees/
+.DS_Store
+node_modules/
+dist/
+evals/.cache/
+evals/results/
+.env
+
+# Private notes, docs and site: kept on this machine, never published
+*.md
+!tests/fixtures/**/*.md
+docs/
+site/
+.env*

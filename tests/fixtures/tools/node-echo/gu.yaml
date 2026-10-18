@@ -1,0 +1,18 @@
+name: node-echo
+version: 1
+description: Echo a string
+use_when: Testing tool execution
+platforms: [macos, linux]
+tools:
+  - name: echo
+    run: node echo.js
+    args:
+      text:
+        type: string
+        required: true
+        positional: true
+test:
+  run: node echo.js hello-gu
+  expect:
+    exit_code: 0
+    stdout_contains: hello-gu

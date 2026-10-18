@@ -1,0 +1,20 @@
+name: py-cli
+version: 1
+description: Echo a string
+use_when: Testing tool execution
+platforms: [macos, linux]
+tools:
+  - name: echo
+    run: py-cli
+    args:
+      text:
+        type: string
+        required: true
+        positional: true
+test:
+  run: py-cli hello-gu
+  expect:
+    exit_code: 0
+    stdout_contains: hello-gu
+
+install: {python: "3.12", pip: "."}

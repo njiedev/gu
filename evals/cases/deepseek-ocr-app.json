@@ -1,0 +1,10 @@
+{
+  "id": "deepseek-ocr-app",
+  "repo": "https://github.com/rdumasia303/deepseek_ocr_app",
+  "commit": "3dac0741b18afc934c063e8528e7576f4d63efe5",
+  "expect": { "unsupported": true, "gpu": "nvidia" },
+  "requests": [
+    { "text": "Extract the text from invoice.png using a standalone local command.", "tool": null },
+    { "text": "Explain what optical character recognition means.", "tool": null }
+  ]
+}

@@ -1,0 +1,11 @@
+name: minimal
+version: 1
+description: A minimal tool.
+use_when: Run a minimal tool.
+platforms: [macos]
+tools:
+  - name: run
+    run: echo hello
+test:
+  run: echo hello
+  expect: { exit_code: 0 }

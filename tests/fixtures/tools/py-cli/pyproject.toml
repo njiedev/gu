@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gu-test-py-cli"
+version = "1.0.0"
+
+[project.scripts]
+py-cli = "py_cli:main"
+
+[tool.setuptools]
+py-modules = ["py_cli"]

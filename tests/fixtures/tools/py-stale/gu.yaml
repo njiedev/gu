@@ -1,0 +1,19 @@
+name: py-stale
+version: 1
+description: Echo a string
+use_when: Testing tool execution
+platforms: [macos, linux]
+tools:
+  - name: echo
+    run: python3 echo.py
+    args:
+      text:
+        type: string
+        required: true
+        positional: true
+test:
+  run: python3 echo.py hello-gu
+  expect:
+    exit_code: 0
+    stdout_contains: hello-gu
+    file_exists: out.txt

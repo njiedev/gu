@@ -1,0 +1,32 @@
+name: colorgrade
+version: 3
+description: Color-correct video clips using LUT files.
+use_when: The user wants to color grade, correct, or match the look of video footage.
+
+platforms: [macos, linux, windows]   # where this tool can run at all
+requires:
+  gpu: none                          # none | any | nvidia | apple
+  system: [ffmpeg]                   # programs that must exist on PATH
+
+install:
+  python: "3.11"                     # managed per tool in an isolated env
+  pip: requirements.txt
+  # node: "20" / npm: package.json / cargo / go ... as needed
+
+env:
+  - name: SOME_API_KEY               # secrets the tool needs; gu prompts once and stores them locally
+    required: false
+
+tools:
+  - name: grade
+    run: python -m colorgrade.cli grade
+    args:
+      input:    { type: path,   description: Video file to grade }
+      lut:      { type: path,   description: .cube LUT file }
+      strength: { type: number, default: 1.0 }
+    returns: Path to the graded video
+    timeout: 600                     # seconds; long jobs are normal
+
+test:
+  run: python -m colorgrade.cli grade --input .gu/test/sample.mp4 --lut .gu/test/sample.cube
+  expect: { exit_code: 0, file_exists: "*_graded.mp4" }

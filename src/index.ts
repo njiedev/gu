@@ -1,0 +1,16 @@
+export { draft, DraftError } from "./draft/drafter";
+export type { DraftedTool, Fixture, Unsupported, DraftResult } from "./draft/drafter";
+export { collectContext } from "./draft/context";
+export type { RepoContext } from "./draft/context";
+export { parseManifest } from "./manifest/schema";
+export type { Manifest, ArgSpec, ToolSpec, Platform } from "./manifest/schema";
+export { discoverInstalled } from "./manifest/discover";
+export type { LoadedTool } from "./manifest/discover";
+export { modelFromEnv } from "./llm/from-env";
+export type { ChatModel, Msg, ToolDef, Turn, ToolCall } from "./llm/types";
+export { writeDraft } from "./draft/write";
+export { ArgError, buildArgv, findTool, toMcpTools } from "./core/tools";
+export type { McpToolDef } from "./core/tools";
+export { installTool } from "./install/install";
+export { runSmokeTest } from "./smoke";
+export type { SmokeResult } from "./smoke";

@@ -1,0 +1,17 @@
+{
+  "id": "personal-cli-toolbox",
+  "repo": "https://github.com/abolfazl-moeini/personal-cli-toolbox",
+  "commit": "9fd27098be392e426f77d021c3a14be2ca4a6c68",
+  "expect": {
+    "unsupported": false,
+    "minTools": 4,
+    "gpu": "none",
+    "requiresSystem": ["bash", "ffmpeg", "yt-dlp"]
+  },
+  "requests": [
+    { "text": "Download the public YouTube videos listed in links.txt, limiting video height to 1080p and without browser cookies.", "tool": "(youtube|yt-dl|ytbatch)", "args": { "listfile": "(^|/)links\\.txt$", "quality": "^1080$", "public": "^true$" } },
+    { "text": "Download just the audio from the Vimeo range manifest playlist.json into podcast.m4a.", "tool": "vimeo", "args": { "manifest": "(^|/)playlist\\.json$", "output": "(^|/)podcast\\.m4a$" } },
+    { "text": "Save the direct HLS media playlist https://example.com/stream/media.m3u8 as lecture.mp4; it is not a master playlist and needs no quality selection.", "tool": "(m3u8|hls)", "args": {} },
+    { "text": "Explain the difference between a stack and a queue.", "tool": null }
+  ]
+}
