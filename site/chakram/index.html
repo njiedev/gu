@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>chakram</title>
+  <meta name="description" content="chakram makes software. measure twice, cut once.">
+  <meta name="theme-color" content="#09090a">
+  <meta name="color-scheme" content="only dark">
+  <link rel="icon" href="../assets/chakram.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #09090a;
+      --ink: #e9e9eb;
+      --dim: #7c7d83;
+      --faint: #4a4b50;
+      --rule: #1b1c1f;
+      --sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+      --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100svh;
+      background: var(--bg);
+      color: var(--ink);
+      font: 400 15px/1.6 var(--sans);
+      -webkit-font-smoothing: antialiased;
+      text-transform: lowercase;
+    }
+
+    ::selection { background: #d9dbe0; color: var(--bg); }
+
+    main {
+      width: min(100% - 48px, 560px);
+      margin: 0 auto;
+      padding: 16vh 0 96px;
+    }
+
+    /* title: the mark and the name, centred, small */
+
+    header { text-align: center; margin-bottom: 64px; }
+
+    .title {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .title h1 { margin: 0; font-size: 24px; font-weight: 500; letter-spacing: -0.01em; }
+
+    .tagline { margin: 8px 0 0; color: var(--dim); font-style: italic; font-size: 15px; }
+
+    .mark {
+      display: block;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border: 0;
+      background: none;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .mark svg { display: block; width: 100%; height: 100%; overflow: visible; }
+    .mark:focus-visible { outline: 1px solid var(--faint); outline-offset: 4px; }
+
+    .rotor { transform-box: view-box; transform-origin: 100px 100px; }
+    .ring { fill: #232428; }
+
+    .sheen {
+      transform-box: view-box;
+      transform-origin: 100px 100px;
+      opacity: 0;
+      animation: sheen 6s cubic-bezier(.6, 0, .3, 1) 1.2s infinite;
+    }
+
+    .star {
+      transform-box: fill-box;
+      transform-origin: center;
+      transform: scale(0);
+      animation: star 6s cubic-bezier(.3, 0, .2, 1) 1.2s infinite;
+    }
+
+    @keyframes sheen {
+      0%   { transform: rotate(6deg);   opacity: 0; }
+      3%   { opacity: 1; }
+      17%  { opacity: 1; }
+      20%  { transform: rotate(112deg); opacity: 0; }
+      100% { transform: rotate(112deg); opacity: 0; }
+    }
+
+    @keyframes star {
+      0%, 15% { transform: scale(0) rotate(0deg); opacity: 0; }
+      20%     { transform: scale(1) rotate(45deg); opacity: 1; }
+      30%     { transform: scale(0) rotate(110deg); opacity: 0; }
+      100%    { transform: scale(0) rotate(110deg); opacity: 0; }
+    }
+
+    /* work: a plain grid of projects */
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, 140px);
+      justify-content: center;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .project {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      aspect-ratio: 1;
+      border: 1px solid var(--rule);
+      border-radius: 10px;
+      color: var(--dim);
+      text-decoration: none;
+      transition: border-color .15s, color .15s;
+    }
+
+    .project:hover, .project:focus-visible { border-color: #34353a; color: var(--ink); outline: none; }
+
+    .project .label { font: 400 13px/1 var(--mono); }
+
+    .project .icon { width: 40px; height: 40px; fill: var(--ink); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .sheen, .star { animation: none; }
+    }
+    .sound-toggle { position: fixed; bottom: 24px; right: 24px; border: 0; padding: 8px; background: none; color: var(--dim); font: 12px var(--mono); cursor: pointer; }
+    .sound-toggle:hover, .sound-toggle:focus-visible { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="title">
+        <button class="mark" id="mark" type="button" aria-label="spin the chakram">
+          <svg viewBox="0 0 200 200" aria-hidden="true">
+            <defs>
+              <linearGradient id="silver" x1="120" y1="20" x2="185" y2="115" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#f4f5f7"/>
+                <stop offset=".35" stop-color="#d9dbe0"/>
+                <stop offset=".6" stop-color="#b9bdc4"/>
+                <stop offset="1" stop-color="#eceef1"/>
+              </linearGradient>
+              <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+                <stop offset=".5" stop-color="#fff" stop-opacity=".95"/>
+                <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+              </linearGradient>
+              <radialGradient id="flare">
+                <stop offset="0" stop-color="#fff" stop-opacity=".9"/>
+                <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+              </radialGradient>
+              <clipPath id="blade">
+                <path d="M127.19 16.30A88 88 0 0 1 186.66 115.28L162.53 107.68A63 63 0 0 0 118.95 39.92Z"/>
+              </clipPath>
+            </defs>
+            <g class="rotor" id="rotor">
+              <path class="ring" fill-rule="evenodd" d="M100 12a88 88 0 1 0 0 176a88 88 0 1 0 0-176ZM100 37a63 63 0 1 1 0 126a63 63 0 1 1 0-126Z"/>
+              <path fill="url(#silver)" d="M127.19 16.30A88 88 0 0 1 186.66 115.28L162.53 107.68A63 63 0 0 0 118.95 39.92Z"/>
+              <g clip-path="url(#blade)">
+                <rect class="sheen" x="93" y="0" width="14" height="100" fill="url(#sheen)"/>
+              </g>
+              <g transform="translate(186.66 115.28)">
+                <g class="star">
+                  <circle r="9" fill="url(#flare)"/>
+                  <path fill="#fff" d="M0-16C.7-3 3-.7 16 0C3 .7.7 3 0 16C-.7 3-3 .7-16 0C-3-.7-.7-3 0-16Z"/>
+                  <path fill="#fff" transform="rotate(45) scale(.45)" d="M0-16C.7-3 3-.7 16 0C3 .7.7 3 0 16C-.7 3-3 .7-16 0C-3-.7-.7-3 0-16Z"/>
+                </g>
+              </g>
+            </g>
+          </svg>
+        </button>
+        <h1>chakram</h1>
+      </div>
+      <p class="tagline">measure twice, cut once.</p>
+    </header>
+
+    <ul class="grid">
+      <li>
+        <a class="project" href="../">
+          <svg class="icon" id="gu-mark" aria-hidden="true"></svg>
+          <span class="label">gu</span>
+        </a>
+      </li>
+    </ul>
+  </main>
+
+  <button class="sound-toggle" data-sound-toggle type="button" aria-label="Interface sounds" aria-pressed="true">sound on</button>
+  <script type="module" src="../assets/interface-sounds.js"></script>
+  <script type="module">
+    import { createPixelMark } from "../pixel-mark.js";
+    createPixelMark(document.getElementById("gu-mark"));
+  </script>
+  <script>
+    // click to spin: each click adds angular velocity, friction bleeds it off.
+    (() => {
+      const mark = document.getElementById("mark");
+      const rotor = document.getElementById("rotor");
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      let angle = 0, velocity = 0, last = 0, running = false;
+      function tick(now) {
+        const dt = Math.min((now - last) / 1000, 0.05);
+        last = now;
+        angle = (angle + velocity * dt) % 360;
+        velocity *= Math.exp(-2.4 * dt);
+        rotor.style.transform = `rotate(${angle}deg)`;
+        if (velocity > 2) requestAnimationFrame(tick);
+        else running = false;
+      }
+      mark.addEventListener("click", () => {
+        velocity = Math.min(velocity + 1080, 3600);
+        if (running) return;
+        running = true;
+        last = performance.now();
+        requestAnimationFrame(tick);
+      });
+    })();
+  </script>
+</body>
+</html>
