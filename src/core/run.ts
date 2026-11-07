@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import type { LoadedTool } from "../manifest/discover";
+import { readSecrets } from "../secrets";
 
 const activeProcessGroups = new Set<number>();
 
@@ -105,10 +106,17 @@ export function runCommand(argv: string[], opts: {
   });
 }
 
-export function toolEnv(loaded: LoadedTool): Record<string, string> {
+export function toolEnv(loaded: LoadedTool, home?: string): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
     if (value !== undefined) env[key] = value;
+  }
+  // Agents often start gu without the owner's shell exports, so declared
+  // secrets saved at install time fill the gaps. A tool sees only its own.
+  const declared = loaded.manifest.env ?? [];
+  if (declared.length) {
+    const saved = readSecrets(home);
+    for (const { name } of declared) if (!env[name] && saved[name]) env[name] = saved[name];
   }
   const bins = [join(loaded.dir, ".venv", "bin"), join(loaded.dir, "node_modules", ".bin")]
     .filter(path => existsSync(path));

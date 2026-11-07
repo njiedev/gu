@@ -11,7 +11,7 @@ export interface SmokeResult {
   run: RunResult;
 }
 
-export async function runSmokeTest(loaded: LoadedTool): Promise<SmokeResult> {
+export async function runSmokeTest(loaded: LoadedTool, home?: string): Promise<SmokeResult> {
   const { expect, run: command } = loaded.manifest.test;
   // Run where an agent would: an empty folder outside the tool. A tool that
   // only works from its own folder fails here instead of in front of the agent.
@@ -35,7 +35,7 @@ export async function runSmokeTest(loaded: LoadedTool): Promise<SmokeResult> {
   const started = Date.now();
   let run: RunResult;
   try {
-    run = await runCommand(anchorCommand(splitCommand(command), loaded.dir), { cwd: workdir, env: toolEnv(loaded), timeoutSec: 300 });
+    run = await runCommand(anchorCommand(splitCommand(command), loaded.dir), { cwd: workdir, env: toolEnv(loaded, home), timeoutSec: 300 });
   } catch (error) {
     rmSync(workdir, { recursive: true, force: true });
     throw error;

@@ -315,3 +315,27 @@ test("the smoke test runs outside the tool folder, so tools that need their own 
   expect(fixed.ok).toBe(true);
   rmSync(source, { recursive: true, force: true });
 });
+
+test("declared secrets are asked for once, stored privately, and given only to that tool", async () => {
+  const { statSync } = await import("node:fs");
+  const { toolEnv } = await import("../src/core/run");
+  const source = mkdtempSync(join(tmpdir(), "gu-secret-tool-"));
+  writeFileSync(join(source, "tool.js"), 'console.log(process.env.GU_TEST_TOKEN === "s3cret" ? "token ok" : "no token");');
+  writeFileSync(join(source, "gu.yaml"), `name: needs-token\nversion: 1\ndescription: Uses a token\nuse_when: Testing\nplatforms: [macos, linux]\nenv:\n  - {name: GU_TEST_TOKEN, required: true}\ntools:\n  - name: run\n    run: ${process.execPath} tool.js\ntest:\n  run: ${process.execPath} tool.js\n  expect: {exit_code: 0, stdout_contains: token ok}\n`);
+  delete process.env.GU_TEST_TOKEN;
+  // Without a terminal and without the variable, the install explains what to do.
+  const refused = await installTool(source, { guHome: home, askSecret: async () => undefined });
+  expect(refused.ok).toBe(false);
+  if (!refused.ok) expect(refused.message).toContain("needs GU_TEST_TOKEN");
+  const asked: string[] = [];
+  const installed = await installTool(source, { guHome: home, askSecret: async name => { asked.push(name); return "s3cret"; } });
+  expect(installed.ok).toBe(true);
+  expect(asked).toEqual(["GU_TEST_TOKEN"]);
+  expect(statSync(join(home, "secrets.json")).mode & 0o777).toBe(0o600);
+  // Reinstalling does not ask again; the server hands the secret to this tool only.
+  expect((await installTool(source, { guHome: home, askSecret: async () => { throw new Error("asked twice"); } })).ok).toBe(true);
+  if (installed.ok) expect(toolEnv(installed.loaded, home).GU_TEST_TOKEN).toBe("s3cret");
+  const other = { manifest: { ...(installed as any).loaded.manifest, env: [] }, dir: source };
+  expect(toolEnv(other, home).GU_TEST_TOKEN).toBeUndefined();
+  rmSync(source, { recursive: true, force: true });
+});

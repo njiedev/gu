@@ -53,7 +53,7 @@ export async function startStdioServer(opts: { guHome?: string; callerCwd?: stri
     const before = snapshot(cwd);
     let run;
     try {
-      run = await runCommand(argv, { cwd, env: toolEnv(loaded), timeoutSec: tool.timeout });
+      run = await runCommand(argv, { cwd, env: toolEnv(loaded, home), timeoutSec: tool.timeout });
     } finally {
       clearInterval(ticker);
     }
