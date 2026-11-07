@@ -21,7 +21,7 @@ Tell Claude what you want:
 
 ## What's inside
 
-- **The gu MCP server**, run with `npx @njiedev/gu`. Your tools run on your machine; nothing is uploaded.
+- **The gu MCP server**, run with `npx @njiedev/gu`. Your tools run on your machine. See Data handling below for optional API drafting and installed-tool behavior.
 - **publish skill**: how to turn a folder into a tested tool.
 - **manage skill**: status, updates, uninstalling, and safe installs from GitHub.
 
@@ -30,3 +30,11 @@ gu also works with Codex and other MCP clients: see the [main README](https://gi
 ## Safety
 
 gu is not a sandbox. Installed tools run with your permissions. Only install tools from repositories you trust.
+
+## Data handling
+
+The plugin reads user-selected repositories and tool inputs and writes tool cards, local installed copies, and tool outputs. These files may contain personal data. Installed tools run with the user's permissions and can read, write, or send data according to their own behavior; review each tool before installing it. Required tool secrets are stored locally in `~/.gu/secrets.json` with owner-only permissions.
+
+When API-assisted drafting is configured, gu sends selected repository content to Anthropic or the user's configured OpenAI-compatible endpoint. Provider retention policies apply. In agent mode, the coding agent reads the repository under its own data policy. Package installation contacts npm and may contact GitHub, PyPI, or other dependency sources required by the selected tool.
+
+The gu publisher operates no hosted service that receives or retains this data. Local installed copies and secrets remain on the user's machine until removed; tool outputs remain wherever the tool writes them.
