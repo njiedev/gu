@@ -1,4 +1,5 @@
-// Records site/banner.html into site/assets/readme-banner.gif for the README.
+// Records site/banner.html into site/assets/readme-banner.gif for the README,
+// and a still 1200x630 site/assets/og-image.png for link previews.
 // Needs Playwright with Chromium, and ffmpeg. Run: node scripts/render-banner.mjs
 import { createServer } from "node:http";
 import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -12,6 +13,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 
 const root = resolve(import.meta.dirname, "..", "site");
 const out = join(root, "assets", "readme-banner.gif");
+const og = join(root, "assets", "og-image.png");
 const FRAMES = 64; // one full turn of the mark, one pixel step per frame
 const FPS = 10;
 const types = { ".html": "text/html", ".js": "text/javascript", ".svg": "image/svg+xml" };
@@ -36,6 +38,13 @@ try {
     await page.evaluate(([i, n]) => window.setFrame(i, n), [i, FRAMES]);
     await banner.screenshot({ path: join(frames, `${String(i).padStart(3, "0")}.png`) });
   }
+  // Link previews are still images at 1.91:1; social sites don't animate them.
+  await page.setViewportSize({ width: 1200, height: 630 });
+  await page.goto(`http://127.0.0.1:${server.address().port}/banner.html?w=1200&h=630`);
+  await page.waitForFunction(() => window.bannerReady === true, null, { timeout: 15_000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.evaluate(() => window.setFrame(6, 64));
+  await banner.screenshot({ path: og });
 } finally {
   await browser.close();
   server.close();
@@ -45,4 +54,4 @@ execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-framerate", String(FPS), "
   "-vf", "split[a][b];[a]palettegen=max_colors=32:stats_mode=full[p];[b][p]paletteuse=dither=none:diff_mode=rectangle",
   "-loop", "0", out]);
 rmSync(frames, { recursive: true, force: true });
-console.log(`Wrote ${out} (${(statSync(out).size / 1024).toFixed(0)} KB)`);
+console.log(`Wrote ${out} (${(statSync(out).size / 1024).toFixed(0)} KB) and ${og} (${(statSync(og).size / 1024).toFixed(0)} KB)`);

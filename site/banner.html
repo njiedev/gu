@@ -10,9 +10,9 @@
   <style>
     :root { --bg: #09090a; --text: #ececee; --muted: #9a9ba1; --sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif; }
     html, body { margin: 0; background: var(--bg); }
-    .banner { position: relative; width: 1280px; height: 400px; overflow: hidden; background: var(--bg); font-family: var(--sans); }
+    .banner { position: relative; width: var(--w, 1280px); height: var(--h, 400px); overflow: hidden; background: var(--bg); font-family: var(--sans); }
     canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
-    .title { position: absolute; left: 0; right: 0; top: 92px; display: flex; flex-direction: column; align-items: center; gap: 14px; color: var(--text); }
+    .title { position: absolute; left: 0; right: 0; top: var(--top, 92px); display: flex; flex-direction: column; align-items: center; gap: 14px; color: var(--text); }
     .brand { display: flex; align-items: center; gap: 22px; font-weight: 600; font-size: 88px; line-height: 1; letter-spacing: -0.02em; }
     .brand svg { width: 80px; height: 80px; fill: var(--text); }
     .tagline { font-size: 26px; color: var(--muted); letter-spacing: -0.005em; }
@@ -31,12 +31,20 @@
     import { drawTreeline } from "./treeline.js";
     import { raster } from "./pixel-mark.js";
 
+    // ?w=&h= renders other sizes, such as the 1200x630 link preview image.
+    const params = new URLSearchParams(location.search);
+    const BW = Number(params.get("w")) || 1280, BH = Number(params.get("h")) || 400;
+    const banner = document.getElementById("banner");
+    banner.style.setProperty("--w", `${BW}px`);
+    banner.style.setProperty("--h", `${BH}px`);
+    banner.style.setProperty("--top", `${Math.round(BH * 0.23)}px`);
+
     // The forest is drawn by the site's own code; the recorder turns motion off
     // so it stays still, and this page animates the stars and the mark itself,
     // in whole cycles, so the GIF loops without a jump.
     drawTreeline(document.getElementById("forest"), { seed: 3, stars: true, mist: 0.3, height: 0.42 });
 
-    const W = 640, H = 200; // 2px pixels, like the site
+    const W = BW / 2, H = BH / 2; // 2px pixels, like the site
     const sparkle = document.getElementById("sparkle");
     sparkle.width = W; sparkle.height = H;
     const ctx = sparkle.getContext("2d");
@@ -48,7 +56,7 @@
       y: 4 + Math.floor(rand() * H * 0.36),
       phase: rand(),
       cycles: 1 + Math.floor(rand() * 2),
-    })).filter(star => !(star.x > 200 && star.x < 440 && star.y > 36)); // keep clear of the title
+    })).filter(star => !(star.x > W / 2 - 120 && star.x < W / 2 + 120 && star.y > H * 0.18)); // keep clear of the title
 
     const mark = document.getElementById("mark");
     const START = -Math.PI / 2 + 0.95;
