@@ -66,6 +66,9 @@ export async function register(opts: Opts = {}): Promise<number> {
   const run = opts.run ?? (argv => runCommand(argv, { cwd: process.cwd(), timeoutSec: 120 }));
   const command = selfCommand();
   const present = CLIENTS.filter(client => find(client.program));
+  if (command.some(part => /[\\/]_npx[\\/]/.test(part))) {
+    error("Warning: gu is running from npx's temporary cache, which npm may delete. Install it for good with npm install -g @njiedev/gu, then run gu register.");
+  }
   if (!present.length) {
     log(`Neither Claude Code nor Codex was found on PATH. After installing one, run gu register, or run one of these:\n${CLIENTS.map(client => client.add(command).map(shellQuote).join(" ")).join("\n")}\nAny other MCP client can launch: ${[...command, "serve"].map(shellQuote).join(" ")}`);
     return 0;

@@ -1,22 +1,55 @@
 {
-  "name": "gu",
+  "name": "@njiedev/gu",
+  "version": "0.1.0",
+  "description": "Turn the command-line tools you write for yourself into tested MCP tools your AI agent (Claude Code, Codex) can find and use.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude-code",
+    "codex",
+    "ai-agents",
+    "cli",
+    "tools"
+  ],
+  "license": "Apache-2.0",
+  "author": "njiedev",
+  "homepage": "https://github.com/njiedev/gu#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/njiedev/gu.git"
+  },
+  "bugs": {
+    "url": "https://github.com/njiedev/gu/issues"
+  },
   "type": "module",
   "bin": {
-    "gu": "src/cli.ts"
+    "gu": "dist/cli.js"
   },
+  "files": [
+    "dist/cli.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "build": "bun build --compile src/cli.ts --outfile dist/gu"
+    "build": "bun build --compile src/cli.ts --outfile dist/gu",
+    "build:npm": "bun scripts/build-npm.ts",
+    "prepublishOnly": "bun run typecheck && bun test && bun run build:npm"
   },
-  "dependencies": {
+  "devDependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "openai": "^7.35.0",
     "yaml": "^2.9.1",
-    "zod": "^4.6.7"
-  },
-  "devDependencies": {
+    "zod": "^4.6.7",
     "@types/bun": "^1.4.3",
     "typescript": "^7.0.2"
   }

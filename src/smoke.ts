@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { LoadedTool } from "./manifest/discover";
 import { runCommand, toolEnv, type RunResult } from "./core/run";
 import { anchorCommand, splitCommand } from "./core/tools";
+import { globFiles } from "./glob";
 
 export interface SmokeResult {
   passed: boolean;
@@ -21,7 +22,7 @@ export async function runSmokeTest(loaded: LoadedTool, home?: string): Promise<S
     if (expect.file_exists !== undefined) {
       // Output lands in the working folder, or next to an input under .gu/test/.
       for (const base of [workdir, loaded.dir]) {
-        for (const path of new Bun.Glob(expect.file_exists).scanSync({ cwd: base, onlyFiles: true, dot: true })) {
+        for (const path of globFiles(expect.file_exists, base)) {
           try {
             const stat = statSync(join(base, path));
             if (stat.isFile()) files.set(join(base, path), stat);
