@@ -4,7 +4,7 @@
 const TAU = Math.PI * 2;
 const GRID = 16;
 
-function raster(angle) {
+export function raster(angle) {
   let out = "";
   for (let y = 0; y < GRID; y++) {
     for (let x = 0; x < GRID; x++) {

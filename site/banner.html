@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>gu banner</title>
+  <!-- The source of the README banner GIF. scripts/render-banner.mjs records it frame by frame. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #09090a; --text: #ececee; --muted: #9a9ba1; --sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    html, body { margin: 0; background: var(--bg); }
+    .banner { position: relative; width: 1280px; height: 400px; overflow: hidden; background: var(--bg); font-family: var(--sans); }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+    .title { position: absolute; left: 0; right: 0; top: 92px; display: flex; flex-direction: column; align-items: center; gap: 14px; color: var(--text); }
+    .brand { display: flex; align-items: center; gap: 22px; font-weight: 600; font-size: 88px; line-height: 1; letter-spacing: -0.02em; }
+    .brand svg { width: 80px; height: 80px; fill: var(--text); }
+    .tagline { font-size: 26px; color: var(--muted); letter-spacing: -0.005em; }
+  </style>
+</head>
+<body>
+  <div class="banner" id="banner">
+    <canvas id="forest"></canvas>
+    <canvas id="sparkle"></canvas>
+    <div class="title">
+      <div class="brand"><svg id="mark" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true"></svg>gu</div>
+      <div class="tagline">Your tools, ready for your agent.</div>
+    </div>
+  </div>
+  <script type="module">
+    import { drawTreeline } from "./treeline.js";
+    import { raster } from "./pixel-mark.js";
+
+    // The forest is drawn by the site's own code; the recorder turns motion off
+    // so it stays still, and this page animates the stars and the mark itself,
+    // in whole cycles, so the GIF loops without a jump.
+    drawTreeline(document.getElementById("forest"), { seed: 3, stars: true, mist: 0.3, height: 0.42 });
+
+    const W = 640, H = 200; // 2px pixels, like the site
+    const sparkle = document.getElementById("sparkle");
+    sparkle.width = W; sparkle.height = H;
+    const ctx = sparkle.getContext("2d");
+    const SHADES = ["#343438", "#707075", "#b2b2b6", "#ececee"];
+    let seed = 41;
+    const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const stars = Array.from({ length: 16 }, () => ({
+      x: 6 + Math.floor(rand() * (W - 12)),
+      y: 4 + Math.floor(rand() * H * 0.36),
+      phase: rand(),
+      cycles: 1 + Math.floor(rand() * 2),
+    })).filter(star => !(star.x > 200 && star.x < 440 && star.y > 36)); // keep clear of the title
+
+    const mark = document.getElementById("mark");
+    const START = -Math.PI / 2 + 0.95;
+    // frame i of n: the mark makes one full turn, one pixel step per frame.
+    window.setFrame = (i, n) => {
+      mark.innerHTML = raster(START + (i / n) * Math.PI * 2);
+      ctx.clearRect(0, 0, W, H);
+      for (const star of stars) {
+        const pulse = (1 + Math.sin(((i / n) * star.cycles + star.phase) * Math.PI * 2)) / 2;
+        const arm = Math.floor(pulse ** 3 * 3);
+        ctx.fillStyle = SHADES[Math.round(pulse * (SHADES.length - 1))];
+        ctx.fillRect(star.x - arm, star.y, arm * 2 + 1, 1);
+        ctx.fillRect(star.x, star.y - arm, 1, arm * 2 + 1);
+      }
+    };
+    window.setFrame(0, 64);
+    document.fonts.ready.then(() => { window.bannerReady = true; });
+  </script>
+</body>
+</html>

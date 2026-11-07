@@ -1,6 +1,6 @@
-# gu
-
-**Your tools, ready for your agent.**
+<p align="center">
+  <img src="site/assets/readme-banner.gif" alt="gu: your tools, ready for your agent" width="100%">
+</p>
 
 gu turns the little command-line tools you build for yourself into tools your AI agent can find and use. A short `gu.yaml` card says how to call the tool and how to test it. gu installs a checked copy, runs its test, and connects itself to Claude Code and Codex over MCP. From then on your agent can use the tool from any project.
 
