@@ -180,13 +180,15 @@
       <section id="install">
         <h2>Install</h2>
         <h3>Ask your coding agent</h3>
-        <div class="code"><span data-copy>Install github.com/njiedev/gu on this machine: build it with Bun, put dist/gu on my PATH, and run gu register.</span><button class="copy" type="button" aria-label="Copy"></button></div>
+        <div class="code"><span data-copy>Install gu on this machine with npm install -g @njiedev/gu, then run gu register.</span><button class="copy" type="button" aria-label="Copy"></button></div>
         <h3>Or run this</h3>
+        <div class="code"><span class="dim">$ </span><span data-copy>npm install -g @njiedev/gu</span><button class="copy" type="button" aria-label="Copy"></button></div>
+        <p>This needs Node 20 or newer. To build a single program from source instead, with Bun:</p>
         <div class="code"><span class="dim">$ </span><span data-copy>git clone https://github.com/njiedev/gu &amp;&amp; cd gu &amp;&amp; bun install &amp;&amp; bun run build</span><button class="copy" type="button" aria-label="Copy"></button></div>
         <p>This builds a single program at <code>dist/gu</code>; <code>./dist/gu --version</code> should print <code>0.1.0</code>. Move it somewhere on your <code>PATH</code> and keep it there, since your agent remembers where it lives.</p>
         <h3>You'll also need</h3>
         <ul class="plain">
-          <li><strong>Bun</strong> to build gu.</li>
+          <li><strong>Node.js 20+</strong> for the npm package, or <strong>Bun</strong> to build from source.</li>
           <li><strong>Claude Code</strong> and/or <strong>Codex</strong>. gu connects to whichever is installed.</li>
           <li><strong>uv</strong> for Python tools, <strong>Node.js and npm</strong> for Node tools.</li>
           <li><strong>git</strong> for <code>gu install github.com/…</code>.</li>
@@ -199,7 +201,7 @@
           <li><p><strong>Ask your agent.</strong> Tell it “install gu and publish ~/code/my-tool”. It runs <code>gu publish</code>, writes the card, and installs the tool. You don't need to review any YAML.</p></li>
           <li><p><strong>gu connects itself.</strong> After the first install, gu adds itself to Claude Code (and Codex, if you have it). In your own terminal it asks first.</p></li>
           <li><p><strong>Just ask for it.</strong> Open a fresh agent session and say what you want in plain English. Your agent picks the right tool and runs it.</p></li>
-          <li><p><strong>Commit <code>gu.yaml</code>.</strong> Then another machine can run <code>gu install github.com/&lt;owner&gt;/&lt;repo&gt;</code>.</p></li>
+          <li><p><strong>Commit <code>gu.yaml</code> and <code>.gu/test/</code>.</strong> Then another machine can run <code>gu install github.com/&lt;owner&gt;/&lt;repo&gt;</code>.</p></li>
         </ol>
       </section>
 
@@ -209,6 +211,7 @@
         <div class="example">
           <div class="example-bar"><strong>gu.yaml</strong><span>written by your agent</span></div>
 <pre><span class="key">name</span>: color-match
+<span class="key">version</span>: 1
 <span class="key">description</span>: Match one image's colors to another
 <span class="key">use_when</span>: The user wants an image to look like a reference image
 <span class="key">platforms</span>: [macos, linux]
@@ -219,9 +222,10 @@
     <span class="key">args</span>:
       <span class="key">source</span>: { type: path, flag: "-s" }
       <span class="key">reference</span>: { type: path, flag: "-r" }
+    <span class="key">returns</span>: Writes &lt;source&gt;_matched.png next to the source image
 <span class="key">test</span>:
-  <span class="key">run</span>: color-matcher -s fixtures/a.png -r fixtures/b.png
-  <span class="key">expect</span>: { exit_code: 0 }</pre>
+  <span class="key">run</span>: color-matcher -s .gu/test/a.png -r .gu/test/b.png
+  <span class="key">expect</span>: { exit_code: 0, file_exists: ".gu/test/a_matched.png" }</pre>
         </div>
         <p>And this is what using it looks like, from any project:</p>
         <div class="example">
@@ -240,9 +244,11 @@
           <tr><td>gu publish</td><td>Use the existing <code>gu.yaml</code>, or get one written, then install, test and connect. Exit code 2 means the card isn't written yet.</td></tr>
           <tr><td>gu publish --redraft</td><td>Ignore the existing <code>gu.yaml</code> and write a fresh one.</td></tr>
           <tr><td>gu publish --agent</td><td>Have your agent write the card even when an API key is set.</td></tr>
+          <tr><td>gu publish --yes</td><td>Don't ask for confirmation. Agents use this after writing the card.</td></tr>
           <tr><td>gu install &lt;folder&gt;</td><td>Install and test a folder that already has a <code>gu.yaml</code>.</td></tr>
-          <tr><td>gu install github.com/&lt;owner&gt;/&lt;repo&gt;</td><td>Clone a repo (optionally <code>@branch</code>, tag or commit), show what will run, and install every card in it.</td></tr>
-          <tr><td>gu status</td><td>List installed tools and any problems.</td></tr>
+          <tr><td>gu install github.com/&lt;owner&gt;/&lt;repo&gt;</td><td>Clone a repo (optionally <code>@branch</code>, tag or commit), show what will run, and install every card in it. Add <code>--yes</code> to skip the question.</td></tr>
+          <tr><td>gu uninstall &lt;name&gt;</td><td>Remove an installed tool.</td></tr>
+          <tr><td>gu status</td><td>List installed tools and any problems, including copies older than their source.</td></tr>
           <tr><td>gu register</td><td>Connect gu to Claude Code and Codex, or fix a stale path. Usually automatic.</td></tr>
           <tr><td>gu serve</td><td>The local MCP server your agent talks to. You won't usually run this yourself.</td></tr>
         </table>
