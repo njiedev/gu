@@ -7,6 +7,7 @@ import { installTool } from "../install/install";
 import { parseManifest } from "../manifest/schema";
 import { apiModelConfigured } from "../llm/from-env";
 import { AGENT_GUIDE } from "../draft/prompt";
+import { ensureRegistered } from "./register";
 
 const excluded = new Set([".git", "node_modules", ".venv", "__pycache__", "dist", "build"]);
 function existingFolders(root: string): string[] {
@@ -109,7 +110,6 @@ export async function publish(repoRoot: string, opts: {
       log(`Could not install ${folder}: ${result.message}`);
     }
   }
-  log("Next: run `gu register` once so your agents can see these tools.");
   return { installed, failed, unsupported };
 }
 
@@ -125,7 +125,7 @@ function agentInstructions(root: string, redraft: boolean): string {
 }
 
 export async function publishCommand(args: string[], opts: {
-  repoRoot?: string; draftFn?: typeof draft; log?: (s: string) => void;
+  repoRoot?: string; draftFn?: typeof draft; log?: (s: string) => void; register?: () => Promise<void>;
 } = {}): Promise<number> {
   try {
     if (args.some(arg => !["--redraft", "--yes", "--agent"].includes(arg))) throw new Error("Usage: gu publish [--redraft] [--agent] [--yes]");
@@ -136,6 +136,7 @@ export async function publishCommand(args: string[], opts: {
       ...(args.includes("--yes") ? { confirm: async () => true } : {}),
     });
     if (result.needsCard) return 2;
+    if (result.installed.length) await (opts.register ?? (() => ensureRegistered({ log: opts.log })))();
     return result.failed.length ? 1 : 0;
   } catch (error) {
     (opts.log ?? console.error)(error instanceof Error ? error.message : String(error));

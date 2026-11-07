@@ -36,7 +36,7 @@ test("accepting writes gu.yaml + fixtures and installs", async () => {
   expect(readFileSync(join(repo, ".gu/test/input.txt"), "utf8")).toBe("hello");
   expect(r.installed).toEqual(["py-echo"]); expect(r.failed).toEqual([]);
   expect(existsSync(join(guHome, "tools/py-echo/1/.gu/test/input.txt"))).toBe(true);
-  expect(logs.join("\n")).toContain("Next: run `gu register` once so your agents can see these tools.");
+  expect(logs.join("\n")).toContain("Installed py-echo. It passed its test.");
 }, 120000);
 test("existing nested gu.yaml is installed after confirmation without drafting and skips generated folders", async () => {
   const nested = join(repo, "nested"); cpSync(join(import.meta.dir, "fixtures/tools/py-echo"), nested, { recursive: true }); writeFileSync(join(nested, "gu.yaml"), yamlText);

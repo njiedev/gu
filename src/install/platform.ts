@@ -1,3 +1,4 @@
+import { which } from "../which";
 import type { Manifest, Platform } from "../manifest/schema";
 
 export interface Probe {
@@ -17,7 +18,7 @@ export function currentPlatform(): Platform {
 }
 
 export function checkPlatform(m: Manifest, probe: Probe = {
-  platform: process.platform, arch: process.arch, which: cmd => Bun.which(cmd),
+  platform: process.platform, arch: process.arch, which: cmd => which(cmd),
 }): { ok: boolean; reasons: string[]; installHints: string[] } {
   const reasons: string[] = [];
   const installHints: string[] = [];
