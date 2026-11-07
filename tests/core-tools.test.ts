@@ -104,3 +104,15 @@ test("lists and finds tools by exact qualified name in declaration order", () =>
   expect(findTool([], "colorgrade__grade")).toBeUndefined();
   expect(toMcpTools([])).toEqual([]);
 });
+
+test("anchorCommand makes the tool's own files absolute and leaves everything else alone", async () => {
+  const { anchorCommand } = await import("../src/core/tools");
+  const { mkdtempSync, mkdirSync, realpathSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "gu-anchor-")));
+  writeFileSync(join(dir, "main.py"), "");
+  mkdirSync(join(dir, "pkg")); mkdirSync(join(dir, ".gu", "test"), { recursive: true }); writeFileSync(join(dir, ".gu", "test", "in.txt"), "");
+  expect(anchorCommand(["python", "main.py", "-m", "pkg", "pkg", "./pkg", "--x=main.py", ".gu/test/in.txt", "../escape", "missing.py"], dir))
+    .toEqual(["python", join(dir, "main.py"), "-m", "pkg", "pkg", join(dir, "pkg"), "--x=main.py", join(dir, ".gu/test/in.txt"), "../escape", "missing.py"]);
+});

@@ -1,8 +1,9 @@
-import { statSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { LoadedTool } from "./manifest/discover";
 import { runCommand, toolEnv, type RunResult } from "./core/run";
-import { splitCommand } from "./core/tools";
+import { anchorCommand, splitCommand } from "./core/tools";
 
 export interface SmokeResult {
   passed: boolean;
@@ -12,21 +13,33 @@ export interface SmokeResult {
 
 export async function runSmokeTest(loaded: LoadedTool): Promise<SmokeResult> {
   const { expect, run: command } = loaded.manifest.test;
+  // Run where an agent would: an empty folder outside the tool. A tool that
+  // only works from its own folder fails here instead of in front of the agent.
+  const workdir = realpathSync(mkdtempSync(join(tmpdir(), `gu-test-${loaded.manifest.name}-`)));
   function matchingFiles() {
     const files = new Map<string, { mtimeMs: number; ctimeMs: number; size: number }>();
     if (expect.file_exists !== undefined) {
-      for (const path of new Bun.Glob(expect.file_exists).scanSync({ cwd: loaded.dir, onlyFiles: true, dot: true })) {
-        try {
-          const stat = statSync(join(loaded.dir, path));
-          if (stat.isFile()) files.set(path, stat);
-        } catch { /* A disappearing match is not proof of output. */ }
+      // Output lands in the working folder, or next to an input under .gu/test/.
+      for (const base of [workdir, loaded.dir]) {
+        for (const path of new Bun.Glob(expect.file_exists).scanSync({ cwd: base, onlyFiles: true, dot: true })) {
+          try {
+            const stat = statSync(join(base, path));
+            if (stat.isFile()) files.set(join(base, path), stat);
+          } catch { /* A disappearing match is not proof of output. */ }
+        }
       }
     }
     return files;
   }
   const before = matchingFiles();
   const started = Date.now();
-  const run = await runCommand(splitCommand(command), { cwd: loaded.dir, env: toolEnv(loaded), timeoutSec: 300 });
+  let run: RunResult;
+  try {
+    run = await runCommand(anchorCommand(splitCommand(command), loaded.dir), { cwd: workdir, env: toolEnv(loaded), timeoutSec: 300 });
+  } catch (error) {
+    rmSync(workdir, { recursive: true, force: true });
+    throw error;
+  }
   const checks: SmokeResult["checks"] = [{
     name: "exit_code", passed: !run.timedOut && run.exitCode === expect.exit_code,
     detail: run.timedOut ? "The test took longer than 300 seconds." : `Expected exit code ${expect.exit_code}; got ${run.exitCode ?? "a process that could not run"}.`,
@@ -44,5 +57,6 @@ export async function runSmokeTest(loaded: LoadedTool): Promise<SmokeResult> {
     });
     checks.push({ name: "file_exists", passed: fresh, detail: `Expected a newly written file matching ${expect.file_exists}.` });
   }
+  rmSync(workdir, { recursive: true, force: true });
   return { passed: checks.every(check => check.passed), checks, run };
 }

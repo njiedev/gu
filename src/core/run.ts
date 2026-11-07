@@ -113,5 +113,9 @@ export function toolEnv(loaded: LoadedTool): Record<string, string> {
   const bins = [join(loaded.dir, ".venv", "bin"), join(loaded.dir, "node_modules", ".bin")]
     .filter(path => existsSync(path));
   if (bins.length) env.PATH = [...bins, ...(env.PATH ? [env.PATH] : [])].join(delimiter);
+  // Tools run in the caller's folder; keep `python -m module` and the tool's own
+  // files reachable from there.
+  env.PYTHONPATH = [loaded.dir, ...(env.PYTHONPATH ? [env.PYTHONPATH] : [])].join(delimiter);
+  env.GU_TOOL_DIR = loaded.dir;
   return env;
 }

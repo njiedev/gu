@@ -1,4 +1,5 @@
-import { resolve } from "node:path";
+import { statSync } from "node:fs";
+import { resolve, sep } from "node:path";
 import type { ArgSpec, ToolSpec } from "../manifest/schema";
 import type { LoadedTool } from "../manifest/discover";
 
@@ -40,11 +41,31 @@ function isRequired(arg: ArgSpec): boolean {
   return arg.required ?? (arg.default === undefined);
 }
 
-export function buildArgv(tool: ToolSpec, args: Record<string, unknown>, callerCwd: string): string[] {
+/**
+ * Tools run in the caller's project folder, so words of a command that name
+ * files shipped with the tool (a script, a fixture) are made absolute.
+ * Directories only count when written as a path, and a module after -m stays
+ * a module name.
+ */
+export function anchorCommand(argv: string[], toolDir: string): string[] {
+  return argv.map((word, index) => {
+    if (!word || word.startsWith("-") || word.includes("=") || argv[index - 1] === "-m") return word;
+    const path = resolve(toolDir, word);
+    if (path !== toolDir && !path.startsWith(toolDir + sep)) return word;
+    try {
+      const stat = statSync(path);
+      if (stat.isFile() || (stat.isDirectory() && /[\\/]/.test(word))) return path;
+    } catch { /* Not a file of the tool: a program name or literal text. */ }
+    return word;
+  });
+}
+
+export function buildArgv(tool: ToolSpec, args: Record<string, unknown>, callerCwd: string, toolDir?: string): string[] {
   for (const name of Object.keys(args)) {
     if (!Object.hasOwn(tool.args, name)) throw new ArgError(`Unknown argument: ${name}`);
   }
-  const argv = splitCommand(tool.run);
+  const command = splitCommand(tool.run);
+  const argv = toolDir ? anchorCommand(command, toolDir) : command;
   for (const [name, arg] of Object.entries(tool.args)) {
     const supplied = Object.hasOwn(args, name) ? args[name] : undefined;
     const value = supplied === undefined ? arg.default : supplied;

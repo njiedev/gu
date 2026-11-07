@@ -214,7 +214,7 @@ for (const exitCode of [0, 7]) test(`I2 unverified replacement stays hidden and 
   writeFileSync(join(dest, INSTALLED_MARKER), "verified");
   writeFileSync(join(source, INSTALLED_MARKER), "source marker must not publish a half-install");
   const started = join(home, "started"), release = join(home, "release");
-  writeFileSync(join(source, "probe.js"), `const fs = require("fs"); fs.writeFileSync(${JSON.stringify(started)}, process.cwd()); const t = setInterval(() => { if(fs.existsSync(${JSON.stringify(release)})) { clearInterval(t); process.exit(${exitCode}); } }, 10); setTimeout(() => process.exit(9), 2000);`);
+  writeFileSync(join(source, "probe.js"), `const fs = require("fs"); fs.writeFileSync(${JSON.stringify(started)}, process.env.GU_TOOL_DIR); const t = setInterval(() => { if(fs.existsSync(${JSON.stringify(release)})) { clearInterval(t); process.exit(${exitCode}); } }, 10); setTimeout(() => process.exit(9), 2000);`);
   const pending = installTool(source);
   try {
     for (let i = 0; i < 100 && !existsSync(started); i++) await Bun.sleep(10);
@@ -300,4 +300,18 @@ test("I2 failing to remove the old copy keeps the new verified install", async (
       if (existsSync(leftover)) chmodSync(leftover, 0o755);
     }
   }
+});
+
+test("the smoke test runs outside the tool folder, so tools that need their own folder as cwd fail early", async () => {
+  const source = mkdtempSync(join(tmpdir(), "gu-cwd-tool-"));
+  writeFileSync(join(source, "data.txt"), "secret sauce");
+  writeFileSync(join(source, "tool.js"), 'console.log(require("node:fs").readFileSync("data.txt", "utf8"));');
+  writeFileSync(join(source, "gu.yaml"), `name: cwd-bound\nversion: 1\ndescription: Reads data\nuse_when: Testing\nplatforms: [macos, linux]\ntools:\n  - name: read\n    run: ${process.execPath} tool.js\ntest:\n  run: ${process.execPath} tool.js\n  expect: {exit_code: 0, stdout_contains: sauce}\n`);
+  const failed = await installTool(source, { guHome: home });
+  expect(failed.ok).toBe(false);
+  // Locating the data next to the script is the portable fix, and it installs.
+  writeFileSync(join(source, "tool.js"), 'console.log(require("node:fs").readFileSync(require("node:path").join(__dirname, "data.txt"), "utf8"));');
+  const fixed = await installTool(source, { guHome: home });
+  expect(fixed.ok).toBe(true);
+  rmSync(source, { recursive: true, force: true });
 });

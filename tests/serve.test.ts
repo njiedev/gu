@@ -22,7 +22,7 @@ beforeAll(async () => {
   if (!result.ok) throw new Error(result.message);
   installed = result.loaded.dir;
   // A marker makes it observable that invalid calls never execute the program.
-  writeFileSync(join(installed, "echo.py"), 'import sys\nfrom pathlib import Path\nPath("ran").write_text("yes")\nprint(sys.argv[1])\n');
+  writeFileSync(join(installed, "echo.py"), 'import sys\nfrom pathlib import Path\nPath(__file__).with_name("ran").write_text("yes")\nprint(sys.argv[1])\n');
   const transport = new StdioClientTransport({ command: process.execPath, args: [cli, "serve"], env: { GU_HOME: home }, cwd: caller, stderr: "pipe" });
   transport.stderr!.on("data", chunk => { diagnostics += chunk.toString(); });
   await client.connect(transport);
@@ -74,7 +74,7 @@ test("rediscovers tools on calls and resolves paths from the caller project", as
   const dir = addProbe("fresh", "console.log(process.cwd()); console.log(process.argv[2]);", 5, "{file: {type: path, positional: true}}");
   const result = await client.callTool({ name: "fresh__probe", arguments: { file: "input.txt" } });
   expect(result.isError).toBe(false);
-  expect(result.content).toEqual([{ type: "text", text: `${dir}\n${join(caller, "input.txt")}\n\n[exit code 0]` }]);
+  expect(result.content).toEqual([{ type: "text", text: `${caller}\n${join(caller, "input.txt")}\n\n[exit code 0]` }]);
   expect((await client.listTools()).tools.map(t => t.name)).toContain("fresh__probe");
 });
 
@@ -134,7 +134,7 @@ test("register propagates command failure", async () => {
 
 for (const stop of ["SIGTERM", "SIGINT", "stdin end"] as const) test(`I8 server ${stop} kills active tool grandchildren`, async () => {
   const name = `lifecycle-${stop.toLowerCase().replace(" ", "-")}`;
-  const dir = addProbe(name, `const {spawn} = require("node:child_process"); const fs = require("node:fs"); const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {stdio:"ignore"}); fs.writeFileSync("pids", JSON.stringify([process.pid, child.pid])); setInterval(() => {}, 1000);`, 60);
+  const dir = addProbe(name, `const {spawn} = require("node:child_process"); const fs = require("node:fs"); const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {stdio:"ignore"}); fs.writeFileSync(require("node:path").join(process.env.GU_TOOL_DIR, "pids"), JSON.stringify([process.pid, child.pid])); setInterval(() => {}, 1000);`, 60);
   const child = Bun.spawn([process.execPath, cli, "serve"], { env: { ...process.env, GU_HOME: home }, stdin: "pipe", stdout: "ignore", stderr: "ignore" });
   let pids: number[] = [];
   const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
@@ -158,3 +158,16 @@ for (const stop of ["SIGTERM", "SIGINT", "stdin end"] as const) test(`I8 server 
     child.kill("SIGKILL"); await child.exited;
   }
 }, 5000);
+
+test("reports files the tool wrote in the caller's folder and attaches images", async () => {
+  // A 1x1 PNG, written where the agent is working.
+  const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+  addProbe("writer", `require("node:fs").writeFileSync("out.png", Buffer.from(${JSON.stringify(png)}, "base64")); console.log("wrote out.png");`);
+  const result = await client.callTool({ name: "writer__probe" });
+  expect(result.isError).toBe(false);
+  const content = result.content as any[];
+  expect(content[0].text).toBe(`wrote out.png\n\n[exit code 0]\n[gu: files written in ${caller}: out.png]`);
+  expect(content[1]).toEqual({ type: "image", data: png, mimeType: "image/png" });
+  expect(existsSync(join(caller, "out.png"))).toBe(true);
+  rmSync(join(caller, "out.png"));
+});
