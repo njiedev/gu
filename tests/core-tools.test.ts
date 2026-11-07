@@ -89,7 +89,7 @@ test("toMcpTools builds names, schema and required list", () => {
 test("schema handles optional descriptions, booleans and inferred required fields", () => {
   const tool = { ...custom({ value: { type: "string" }, file: { type: "path", required: false }, enabled: { type: "boolean", default: false }, explicit: { type: "number", required: true, default: 0 } }), description: " Grade a clip.", returns: undefined };
   const [def] = toMcpTools([{ ...colorgradeLoaded, manifest: { ...manifest, tools: [tool] } }]);
-  expect(def.description).toBe(`${manifest.description}${tool.description}\nUse when: ${manifest.use_when}`);
+  expect(def.description).toBe(`${manifest.description}\nGrade a clip.\nUse when: ${manifest.use_when}`);
   expect(def.inputSchema.required).toEqual(["value", "explicit"]);
   expect(def.inputSchema.properties.file).toEqual({ type: "string", description: " (file path)" });
   expect(def.inputSchema.properties.enabled).toEqual({ type: "boolean", default: false });
@@ -103,4 +103,31 @@ test("lists and finds tools by exact qualified name in declaration order", () =>
   expect(findTool([loaded], "grade")).toBeUndefined();
   expect(findTool([], "colorgrade__grade")).toBeUndefined();
   expect(toMcpTools([])).toEqual([]);
+});
+
+test("anchorCommand makes the tool's own files absolute and leaves everything else alone", async () => {
+  const { anchorCommand } = await import("../src/core/tools");
+  const { mkdtempSync, mkdirSync, realpathSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "gu-anchor-")));
+  writeFileSync(join(dir, "main.py"), "");
+  mkdirSync(join(dir, "pkg")); mkdirSync(join(dir, ".gu", "test"), { recursive: true }); writeFileSync(join(dir, ".gu", "test", "in.txt"), "");
+  expect(anchorCommand(["python", "main.py", "-m", "pkg", "pkg", "./pkg", "--x=main.py", ".gu/test/in.txt", "../escape", "missing.py"], dir))
+    .toEqual(["python", join(dir, "main.py"), "-m", "pkg", "pkg", join(dir, "pkg"), "--x=main.py", join(dir, ".gu/test/in.txt"), "../escape", "missing.py"]);
+});
+
+test("globFiles matches like the shell for the patterns cards use", async () => {
+  const { globFiles, globToRegExp } = await import("../src/glob");
+  const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "gu-glob-"));
+  mkdirSync(join(dir, ".gu", "test"), { recursive: true });
+  for (const file of ["a_graded.mp4", "b.mp4", ".gu/test/in_graded.mp4", ".gu/test/x.txt"]) writeFileSync(join(dir, file), "");
+  expect(globFiles("*_graded.mp4", dir)).toEqual(["a_graded.mp4"]);
+  expect(globFiles("**/*_graded.mp4", dir).sort()).toEqual([".gu/test/in_graded.mp4", "a_graded.mp4"]);
+  expect(globFiles(".gu/test/x.txt", dir)).toEqual([".gu/test/x.txt"]);
+  expect(globFiles("./b.mp4", dir)).toEqual(["b.mp4"]);
+  expect(globToRegExp("a?c.(1)").test("abc.(1)")).toBe(true);
 });

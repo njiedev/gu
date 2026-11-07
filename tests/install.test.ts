@@ -214,7 +214,7 @@ for (const exitCode of [0, 7]) test(`I2 unverified replacement stays hidden and 
   writeFileSync(join(dest, INSTALLED_MARKER), "verified");
   writeFileSync(join(source, INSTALLED_MARKER), "source marker must not publish a half-install");
   const started = join(home, "started"), release = join(home, "release");
-  writeFileSync(join(source, "probe.js"), `const fs = require("fs"); fs.writeFileSync(${JSON.stringify(started)}, process.cwd()); const t = setInterval(() => { if(fs.existsSync(${JSON.stringify(release)})) { clearInterval(t); process.exit(${exitCode}); } }, 10); setTimeout(() => process.exit(9), 2000);`);
+  writeFileSync(join(source, "probe.js"), `const fs = require("fs"); fs.writeFileSync(${JSON.stringify(started)}, process.env.GU_TOOL_DIR); const t = setInterval(() => { if(fs.existsSync(${JSON.stringify(release)})) { clearInterval(t); process.exit(${exitCode}); } }, 10); setTimeout(() => process.exit(9), 2000);`);
   const pending = installTool(source);
   try {
     for (let i = 0; i < 100 && !existsSync(started); i++) await Bun.sleep(10);
@@ -300,4 +300,70 @@ test("I2 failing to remove the old copy keeps the new verified install", async (
       if (existsSync(leftover)) chmodSync(leftover, 0o755);
     }
   }
+});
+
+test("the smoke test runs outside the tool folder, so tools that need their own folder as cwd fail early", async () => {
+  const source = mkdtempSync(join(tmpdir(), "gu-cwd-tool-"));
+  writeFileSync(join(source, "data.txt"), "secret sauce");
+  writeFileSync(join(source, "tool.js"), 'console.log(require("node:fs").readFileSync("data.txt", "utf8"));');
+  writeFileSync(join(source, "gu.yaml"), `name: cwd-bound\nversion: 1\ndescription: Reads data\nuse_when: Testing\nplatforms: [macos, linux]\ntools:\n  - name: read\n    run: ${process.execPath} tool.js\ntest:\n  run: ${process.execPath} tool.js\n  expect: {exit_code: 0, stdout_contains: sauce}\n`);
+  const failed = await installTool(source, { guHome: home });
+  expect(failed.ok).toBe(false);
+  // Locating the data next to the script is the portable fix, and it installs.
+  writeFileSync(join(source, "tool.js"), 'console.log(require("node:fs").readFileSync(require("node:path").join(__dirname, "data.txt"), "utf8"));');
+  const fixed = await installTool(source, { guHome: home });
+  expect(fixed.ok).toBe(true);
+  rmSync(source, { recursive: true, force: true });
+});
+
+test("declared secrets are asked for once, stored privately, and given only to that tool", async () => {
+  const { statSync } = await import("node:fs");
+  const { toolEnv } = await import("../src/core/run");
+  const source = mkdtempSync(join(tmpdir(), "gu-secret-tool-"));
+  writeFileSync(join(source, "tool.js"), 'console.log(process.env.GU_TEST_TOKEN === "s3cret" ? "token ok" : "no token");');
+  writeFileSync(join(source, "gu.yaml"), `name: needs-token\nversion: 1\ndescription: Uses a token\nuse_when: Testing\nplatforms: [macos, linux]\nenv:\n  - {name: GU_TEST_TOKEN, required: true}\ntools:\n  - name: run\n    run: ${process.execPath} tool.js\ntest:\n  run: ${process.execPath} tool.js\n  expect: {exit_code: 0, stdout_contains: token ok}\n`);
+  delete process.env.GU_TEST_TOKEN;
+  // Without a terminal and without the variable, the install explains what to do.
+  const refused = await installTool(source, { guHome: home, askSecret: async () => undefined });
+  expect(refused.ok).toBe(false);
+  if (!refused.ok) expect(refused.message).toContain("needs GU_TEST_TOKEN");
+  const asked: string[] = [];
+  const installed = await installTool(source, { guHome: home, askSecret: async name => { asked.push(name); return "s3cret"; } });
+  expect(installed.ok).toBe(true);
+  expect(asked).toEqual(["GU_TEST_TOKEN"]);
+  expect(statSync(join(home, "secrets.json")).mode & 0o777).toBe(0o600);
+  // Reinstalling does not ask again; the server hands the secret to this tool only.
+  expect((await installTool(source, { guHome: home, askSecret: async () => { throw new Error("asked twice"); } })).ok).toBe(true);
+  if (installed.ok) expect(toolEnv(installed.loaded, home).GU_TEST_TOKEN).toBe("s3cret");
+  const other = { manifest: { ...(installed as any).loaded.manifest, env: [] }, dir: source };
+  expect(toolEnv(other, home).GU_TEST_TOKEN).toBeUndefined();
+  rmSync(source, { recursive: true, force: true });
+});
+
+test("installing keeps exactly one version, uninstall removes the tool, and edits to the source are flagged", async () => {
+  const { staleNote } = await import("../src/install/staleness");
+  const { uninstallCommand } = await import("../src/commands/uninstall");
+  const { statusCommand } = await import("../src/commands/status");
+  const source = mkdtempSync(join(tmpdir(), "gu-versions-"));
+  cpSync(fixture("node-echo"), source, { recursive: true });
+  const card = (version: number) => readFileSync(join(fixture("node-echo"), "gu.yaml"), "utf8").replace("version: 1", `version: ${version}`);
+  writeFileSync(join(source, "gu.yaml"), card(3));
+  expect((await installTool(source, { guHome: home })).ok).toBe(true);
+  writeFileSync(join(source, "gu.yaml"), card(2));
+  const second = await installTool(source, { guHome: home });
+  expect(second.ok).toBe(true);
+  // Going back to version 2 must not leave version 3 shadowing it.
+  expect(readdirSync(join(home, "tools", "node-echo"))).toEqual(["2"]);
+  if (!second.ok) return;
+  expect(staleNote(second.loaded.dir)).toBeUndefined();
+  const later = new Date(Date.now() + 5000);
+  utimesSync(join(source, "echo.js"), later, later);
+  expect(staleNote(second.loaded.dir)).toContain(`gu install ${realpathSync(source)}`);
+  const lines: string[] = [];
+  statusCommand(home, s => lines.push(s));
+  expect(lines.join("\n")).toContain("out of date");
+  expect(uninstallCommand(["node-echo"], home, () => {}, () => {})).toBe(0);
+  expect(existsSync(join(home, "tools", "node-echo"))).toBe(false);
+  expect(uninstallCommand(["node-echo"], home, () => {}, () => {})).toBe(1);
+  rmSync(source, { recursive: true, force: true });
 });

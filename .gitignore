@@ -9,6 +9,7 @@ evals/results/
 
 # Private notes and docs: kept on this machine, never published
 *.md
+!/README.md
 !tests/fixtures/**/*.md
 docs/
 .env*

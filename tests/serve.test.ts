@@ -6,7 +6,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { installTool } from "../src/install/install";
 import { INSTALLED_MARKER } from "../src/manifest/discover";
-import { register, selfCommand } from "../src/commands/register";
+import { ensureRegistered, isRegistered, register, selfCommand } from "../src/commands/register";
 import type { RunResult } from "../src/core/run";
 
 const home = realpathSync(mkdtempSync(join(tmpdir(), "gu-serve-")));
@@ -22,7 +22,7 @@ beforeAll(async () => {
   if (!result.ok) throw new Error(result.message);
   installed = result.loaded.dir;
   // A marker makes it observable that invalid calls never execute the program.
-  writeFileSync(join(installed, "echo.py"), 'import sys\nfrom pathlib import Path\nPath("ran").write_text("yes")\nprint(sys.argv[1])\n');
+  writeFileSync(join(installed, "echo.py"), 'import sys\nfrom pathlib import Path\nPath(__file__).with_name("ran").write_text("yes")\nprint(sys.argv[1])\n');
   const transport = new StdioClientTransport({ command: process.execPath, args: [cli, "serve"], env: { GU_HOME: home }, cwd: caller, stderr: "pipe" });
   transport.stderr!.on("data", chunk => { diagnostics += chunk.toString(); });
   await client.connect(transport);
@@ -74,7 +74,7 @@ test("rediscovers tools on calls and resolves paths from the caller project", as
   const dir = addProbe("fresh", "console.log(process.cwd()); console.log(process.argv[2]);", 5, "{file: {type: path, positional: true}}");
   const result = await client.callTool({ name: "fresh__probe", arguments: { file: "input.txt" } });
   expect(result.isError).toBe(false);
-  expect(result.content).toEqual([{ type: "text", text: `${dir}\n${join(caller, "input.txt")}\n\n[exit code 0]` }]);
+  expect(result.content).toEqual([{ type: "text", text: `${caller}\n${join(caller, "input.txt")}\n\n[exit code 0]` }]);
   expect((await client.listTools()).tools.map(t => t.name)).toContain("fresh__probe");
 });
 
@@ -104,37 +104,66 @@ test("selfCommand points to the absolute development entry point", () => {
   expect(selfCommand()).toEqual([process.execPath, cli]);
 });
 
-test("register runs the exact Claude argv when installed", async () => {
+const quietLogs = { log: () => {}, error: () => {} };
+
+test("register removes and re-adds gu in every installed agent, then records it", async () => {
   const calls: string[][] = [];
-  const output = spyOn(console, "log").mockImplementation(() => {});
-  try {
-    expect(await register({ which: cmd => cmd === "claude" ? "/bin/claude" : null, run: async argv => { calls.push(argv); return success; } })).toBe(0);
-    expect(calls).toEqual([["claude", "mcp", "add", "--scope", "user", "gu", "--", ...selfCommand(), "serve"]]);
-  } finally { output.mockRestore(); }
+  const regHome = mkdtempSync(join(tmpdir(), "gu-reg-"));
+  const opts = { ...quietLogs, guHome: regHome, which: (cmd: string) => `/bin/${cmd}`, run: async (argv: string[]) => { calls.push(argv); return success; } };
+  expect(await register(opts)).toBe(0);
+  expect(calls).toEqual([
+    ["claude", "mcp", "remove", "--scope", "user", "gu"],
+    ["claude", "mcp", "add", "--scope", "user", "gu", "--", ...selfCommand(), "serve"],
+    ["codex", "mcp", "remove", "gu"],
+    ["codex", "mcp", "add", "gu", "--", ...selfCommand(), "serve"],
+  ]);
+  expect(isRegistered(opts)).toBe(true);
+  // A gu that moved is stale and gets registered again.
+  writeFileSync(join(regHome, "registered.json"), JSON.stringify({ command: ["/old/gu"], clients: ["claude", "codex"] }));
+  expect(isRegistered(opts)).toBe(false);
+  // A newly installed agent also makes the registration incomplete.
+  writeFileSync(join(regHome, "registered.json"), JSON.stringify({ command: selfCommand(), clients: ["claude"] }));
+  expect(isRegistered(opts)).toBe(false);
+  rmSync(regHome, { recursive: true, force: true });
 });
 
-test("register prints the command when Claude is absent without running it", async () => {
-  const output = spyOn(console, "log").mockImplementation(() => {});
+test("register prints the commands when no agent is installed without running anything", async () => {
+  const logs: string[] = [];
   let ran = false;
-  try {
-    expect(await register({ which: () => null, run: async () => { ran = true; return success; } })).toBe(0);
-    expect(ran).toBe(false);
-    expect(output.mock.calls.flat().join("\n")).toContain("claude mcp add --scope user gu --");
-    expect(output.mock.calls.flat().join("\n")).toContain(cli);
-  } finally { output.mockRestore(); }
+  expect(await register({ ...quietLogs, log: s => logs.push(s), which: () => null, run: async () => { ran = true; return success; } })).toBe(0);
+  expect(ran).toBe(false);
+  expect(logs.join("\n")).toContain("claude mcp add --scope user gu --");
+  expect(logs.join("\n")).toContain("codex mcp add gu --");
+  expect(logs.join("\n")).toContain(cli);
 });
 
-test("register propagates command failure", async () => {
-  const output = spyOn(console, "error").mockImplementation(() => {});
+test("register reports a failing agent but still registers the others", async () => {
+  const errors: string[] = [];
+  const regHome = mkdtempSync(join(tmpdir(), "gu-reg-"));
+  const run = async (argv: string[]) => argv[0] === "claude" && argv[2] === "add" ? { ...success, exitCode: 2, stderr: "registration failed" } : success;
+  expect(await register({ log: () => {}, error: s => errors.push(s), guHome: regHome, which: cmd => `/bin/${cmd}`, run })).toBe(2);
+  expect(errors.join("\n")).toContain("registration failed");
+  expect(JSON.parse(readFileSync(join(regHome, "registered.json"), "utf8")).clients).toEqual(["codex"]);
+  rmSync(regHome, { recursive: true, force: true });
+});
+
+test("after an install, agents are connected right away but a person is asked first", async () => {
+  const saved = process.env.GU_NO_REGISTER;
+  delete process.env.GU_NO_REGISTER;
   try {
-    expect(await register({ which: () => "/bin/claude", run: async () => ({ ...success, exitCode: 2, stderr: "registration failed" }) })).toBe(2);
-    expect(output.mock.calls.flat().join("\n")).toContain("registration failed");
-  } finally { output.mockRestore(); }
+    for (const [interactive, answer, expected] of [[false, false, 4], [true, false, 0], [true, true, 4]] as const) {
+      const regHome = mkdtempSync(join(tmpdir(), "gu-reg-"));
+      const calls: string[][] = [];
+      await ensureRegistered({ ...quietLogs, guHome: regHome, interactive, ask: async () => answer, which: cmd => `/bin/${cmd}`, run: async argv => { calls.push(argv); return success; } });
+      expect(calls.length).toBe(expected);
+      rmSync(regHome, { recursive: true, force: true });
+    }
+  } finally { if (saved !== undefined) process.env.GU_NO_REGISTER = saved; }
 });
 
 for (const stop of ["SIGTERM", "SIGINT", "stdin end"] as const) test(`I8 server ${stop} kills active tool grandchildren`, async () => {
   const name = `lifecycle-${stop.toLowerCase().replace(" ", "-")}`;
-  const dir = addProbe(name, `const {spawn} = require("node:child_process"); const fs = require("node:fs"); const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {stdio:"ignore"}); fs.writeFileSync("pids", JSON.stringify([process.pid, child.pid])); setInterval(() => {}, 1000);`, 60);
+  const dir = addProbe(name, `const {spawn} = require("node:child_process"); const fs = require("node:fs"); const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {stdio:"ignore"}); fs.writeFileSync(require("node:path").join(process.env.GU_TOOL_DIR, "pids"), JSON.stringify([process.pid, child.pid])); setInterval(() => {}, 1000);`, 60);
   const child = Bun.spawn([process.execPath, cli, "serve"], { env: { ...process.env, GU_HOME: home }, stdin: "pipe", stdout: "ignore", stderr: "ignore" });
   let pids: number[] = [];
   const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
@@ -158,3 +187,16 @@ for (const stop of ["SIGTERM", "SIGINT", "stdin end"] as const) test(`I8 server 
     child.kill("SIGKILL"); await child.exited;
   }
 }, 5000);
+
+test("reports files the tool wrote in the caller's folder and attaches images", async () => {
+  // A 1x1 PNG, written where the agent is working.
+  const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+  addProbe("writer", `require("node:fs").writeFileSync("out.png", Buffer.from(${JSON.stringify(png)}, "base64")); console.log("wrote out.png");`);
+  const result = await client.callTool({ name: "writer__probe" });
+  expect(result.isError).toBe(false);
+  const content = result.content as any[];
+  expect(content[0].text).toBe(`wrote out.png\n\n[exit code 0]\n[gu: files written in ${caller}: out.png]`);
+  expect(content[1]).toEqual({ type: "image", data: png, mimeType: "image/png" });
+  expect(existsSync(join(caller, "out.png"))).toBe(true);
+  rmSync(join(caller, "out.png"));
+});

@@ -6,6 +6,7 @@ import { guHome, toolsDir } from "../paths";
 import { runCommand, toolEnv } from "../core/run";
 import { runSmokeTest, type SmokeResult } from "../smoke";
 import { checkPlatform } from "./platform";
+import { promptSecret, readSecrets, saveSecret } from "../secrets";
 
 type InstallResult = { ok: true; loaded: LoadedTool; smoke: SmokeResult } |
   { ok: false; stage: "manifest" | "platform" | "deps" | "smoke"; message: string };
@@ -22,7 +23,13 @@ function canonicalPath(path: string): string {
 }
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
-export async function installTool(srcDir: string, opts: { guHome?: string; dependencyTimeoutSec?: number; log?: (s: string) => void } = {}): Promise<InstallResult> {
+export async function installTool(srcDir: string, opts: {
+  guHome?: string; dependencyTimeoutSec?: number; log?: (s: string) => void;
+  /** Ask for a missing secret; defaults to a hidden prompt in a terminal and to nothing otherwise. */
+  askSecret?: (name: string, tool: string) => Promise<string | undefined>;
+  /** Where the tool came from when the source folder is temporary, such as a GitHub clone. */
+  origin?: string;
+} = {}): Promise<InstallResult> {
   let parsed;
   try { parsed = parseManifest(readFileSync(join(srcDir, "gu.yaml"), "utf8")); }
   catch (error) { return { ok: false, stage: "manifest", message: `Could not read the tool's gu.yaml: ${message(error)}` }; }
@@ -30,6 +37,16 @@ export async function installTool(srcDir: string, opts: { guHome?: string; depen
   const manifest = parsed.manifest;
   const platform = checkPlatform(manifest);
   if (!platform.ok) return { ok: false, stage: "platform", message: `${manifest.name} can't run on this computer: ${platform.reasons.join("; ")}.${platform.installHints.length ? ` Try: ${platform.installHints.join("; ")}.` : ""}` };
+  const home = opts.guHome ?? guHome();
+  const ask = opts.askSecret ?? (process.stdin.isTTY ? (name: string, tool: string) => promptSecret(name, tool) : async () => undefined);
+  const missing: string[] = [];
+  for (const { name, required } of manifest.env) {
+    if (process.env[name] || readSecrets(home)[name]) continue;
+    const value = await ask(name, manifest.name);
+    if (value) saveSecret(name, value, home);
+    else if (required) missing.push(name);
+  }
+  if (missing.length) return { ok: false, stage: "platform", message: `${manifest.name} needs ${missing.join(", ")}. Run gu install in your own terminal to enter ${missing.length > 1 ? "them" : "it"} once (gu stores secrets in ${join(home, "secrets.json")}, readable only by you), or export ${missing.length > 1 ? "them" : "it"} before starting your agent.` };
   if (manifest.install?.node) {
     const declared = manifest.install.node;
     const requiredMajor = /^v?(\d+)(?:\.|$)/.exec(declared)?.[1];
@@ -89,9 +106,10 @@ export async function installTool(srcDir: string, opts: { guHome?: string; depen
     mkdirSync(dir);
     cpSync(source, dir, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true, filter: path => path === source || (!excluded.has(basename(path)) && path !== join(source, INSTALLED_MARKER)) });
     const loaded = { manifest, dir };
+    const env = toolEnv(loaded, home);
     async function dependency(argv: string[]) {
       opts.log?.(`Running ${argv.join(" ")}.`);
-      const run = await runCommand(argv, { cwd: dir, env: { ...toolEnv(loaded), npm_config_update_notifier: "false" }, timeoutSec: opts.dependencyTimeoutSec ?? 300 });
+      const run = await runCommand(argv, { cwd: dir, env: { ...env, npm_config_update_notifier: "false" }, timeoutSec: opts.dependencyTimeoutSec ?? 300 });
       if (run.timedOut || run.exitCode !== 0) throw new Error(`${argv[0]} ${run.timedOut ? "exceeded its time limit" : "could not set up the tool"} after ${(run.durationMs / 1000).toFixed(2)} seconds. ${run.stderr.trim() || run.stdout.trim()}`);
     }
     if (manifest.install?.python) {
@@ -100,9 +118,9 @@ export async function installTool(srcDir: string, opts: { guHome?: string; depen
     }
     if (manifest.install?.npm) await dependency(["npm", "install", "--prefer-offline", "--no-audit", "--no-fund"]);
     stage = "smoke";
-    const smoke = await runSmokeTest(loaded);
+    const smoke = await runSmokeTest(loaded, home);
     if (!smoke.passed) throw new Error(`Test failed after ${(smoke.run.durationMs / 1000).toFixed(2)} seconds. ` + smoke.checks.filter(check => !check.passed).map(check => check.detail).join(" ") + (smoke.run.stderr ? ` ${smoke.run.stderr.trim()}` : ""));
-    writeFileSync(join(dir, INSTALLED_MARKER), new Date().toISOString() + "\n");
+    writeFileSync(join(dir, INSTALLED_MARKER), JSON.stringify(opts.origin ? { installedAt: new Date().toISOString(), origin: opts.origin } : { installedAt: new Date().toISOString(), source }) + "\n");
     published = { ok: true, loaded, smoke };
   } catch (error) {
     let cleanup = "";
@@ -121,6 +139,14 @@ export async function installTool(srcDir: string, opts: { guHome?: string; depen
     try { rmSync(previousDir, { recursive: true, force: true }); }
     catch (error) {
       try { opts.log?.(`Installed, but could not remove the old copy at ${previousDir}: ${message(error)}`); } catch {}
+    }
+  }
+  // One version per tool: older and newer copies would otherwise shadow or outlive this one.
+  for (const entry of readdirSync(dirname(dir), { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === basename(dir) || !/^\d+$/.test(entry.name)) continue;
+    try { rmSync(join(dirname(dir), entry.name), { recursive: true, force: true }); }
+    catch (error) {
+      try { opts.log?.(`Installed, but could not remove version ${entry.name}: ${message(error)}`); } catch {}
     }
   }
   return published;
