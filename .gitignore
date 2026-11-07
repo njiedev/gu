@@ -10,6 +10,8 @@ evals/results/
 # Private notes and docs: kept on this machine, never published
 *.md
 !/README.md
+# The plugin's skills and README ship with it
+!/plugin/**/*.md
 !tests/fixtures/**/*.md
 docs/
 .env*

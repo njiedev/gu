@@ -1,8 +1,17 @@
 <p align="center">
-  <img src="site/assets/readme-banner.gif" alt="gu: your tools, ready for your agent" width="100%">
+  <img src="https://raw.githubusercontent.com/njiedev/gu/main/site/assets/readme-banner.gif" alt="gu: your tools, ready for your agent" width="100%">
 </p>
 
-gu turns the little command-line tools you build for yourself into tools your AI agent can find and use. A short `gu.yaml` card says how to call the tool and how to test it. gu installs a checked copy, runs its test, and connects itself to Claude Code and Codex over MCP. From then on your agent can use the tool from any project.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@njiedev/gu"><img src="https://img.shields.io/npm/v/@njiedev/gu?color=2b2b2f&label=npm" alt="npm version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-2b2b2f" alt="Apache-2.0 license"></a>
+  <img src="https://img.shields.io/badge/MCP-server-2b2b2f" alt="MCP server">
+  <img src="https://img.shields.io/badge/Claude_Code-plugin-2b2b2f" alt="Claude Code plugin">
+</p>
+
+**Turn your scripts and command-line tools into MCP tools for Claude Code, Codex and any MCP client, without writing a server.**
+
+gu turns the little command-line tools you build for yourself into tools your AI agent can find and use. A short `gu.yaml` card says how to call the tool and how to test it. gu installs a checked copy, runs its test, and connects itself to Claude Code and Codex over MCP (the Model Context Protocol). From then on your agent can use the tool from any project.
 
 Everything runs on your machine, on macOS and Linux. Nothing is uploaded to a registry.
 

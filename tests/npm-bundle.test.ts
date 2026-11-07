@@ -20,6 +20,10 @@ test("package.json, the CLI and the Claude Code plugin agree on the version", ()
   expect(json("package.json").version).toBe(VERSION);
   expect(json("plugin/.claude-plugin/plugin.json").version).toBe(VERSION);
   expect(json(".claude-plugin/marketplace.json").plugins[0].version).toBe(VERSION);
+  expect(json("server.json").version).toBe(VERSION);
+  expect(json("server.json").packages[0].version).toBe(VERSION);
+  // The MCP Registry verifies npm ownership through mcpName.
+  expect(json("package.json").mcpName).toBe(json("server.json").name);
   // The plugin runs exactly this release from npm.
   expect(json("plugin/.mcp.json").mcpServers.gu.args).toContain(`@njiedev/gu@${VERSION}`);
   for (const skill of ["publish", "manage"]) expect(readFileSync(join(root, "plugin/skills", skill, "SKILL.md"), "utf8")).toContain(`@njiedev/gu@${VERSION}`);
