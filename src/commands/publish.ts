@@ -5,6 +5,8 @@ import { draft, type DraftResult, type Unsupported } from "../draft/drafter";
 import { writeDraft } from "../draft/write";
 import { installTool } from "../install/install";
 import { parseManifest } from "../manifest/schema";
+import { apiModelConfigured } from "../llm/from-env";
+import { AGENT_GUIDE } from "../draft/prompt";
 
 const excluded = new Set([".git", "node_modules", ".venv", "__pycache__", "dist", "build"]);
 function existingFolders(root: string): string[] {
@@ -47,8 +49,10 @@ export async function publish(repoRoot: string, opts: {
   confirm?: (summary: string) => Promise<boolean>;
   guHome?: string;
   redraft?: boolean;
+  /** Have the coding agent write the card even when an API model is configured. */
+  agent?: boolean;
   log?: (s: string) => void;
-} = {}): Promise<{ installed: string[]; failed: { folder: string; message: string }[]; unsupported: Unsupported[] }> {
+} = {}): Promise<{ installed: string[]; failed: { folder: string; message: string }[]; unsupported: Unsupported[]; needsCard?: boolean }> {
   const root = resolve(repoRoot);
   const log = opts.log ?? console.log;
   const installed: string[] = [];
@@ -58,8 +62,9 @@ export async function publish(repoRoot: string, opts: {
   let drafted: DraftResult | undefined;
   let summary: string;
   if (!folders.length) {
-    if (!opts.draftFn && (process.env.GU_LLM ?? "anthropic") === "anthropic" && !process.env.ANTHROPIC_API_KEY) {
-      throw new Error("Set ANTHROPIC_API_KEY before running gu publish.");
+    if (!opts.draftFn && (opts.agent || !apiModelConfigured())) {
+      log(agentInstructions(root, Boolean(opts.redraft)));
+      return { installed, failed, unsupported, needsCard: true };
     }
     drafted = await (opts.draftFn ?? draft)(root, { log });
     unsupported = drafted.unsupported;
@@ -108,16 +113,29 @@ export async function publish(repoRoot: string, opts: {
   return { installed, failed, unsupported };
 }
 
+function agentInstructions(root: string, redraft: boolean): string {
+  return [
+    `gu publish: ${redraft ? "a fresh card was requested" : "no gu.yaml card was found"} in ${root}.`,
+    "The card isn't written yet (exit code 2). If you are a coding agent, write it now by following the rules below, then run `gu publish --yes` from this folder.",
+    ...(redraft ? ["Replace the existing gu.yaml files rather than editing them."] : []),
+    "If you are a person, ask your coding agent to run `gu publish`, or set ANTHROPIC_API_KEY (or GU_LLM=openai-compatible) so gu can write the card itself.",
+    "",
+    AGENT_GUIDE,
+  ].join("\n");
+}
+
 export async function publishCommand(args: string[], opts: {
   repoRoot?: string; draftFn?: typeof draft; log?: (s: string) => void;
 } = {}): Promise<number> {
   try {
-    if (args.some(arg => arg !== "--redraft" && arg !== "--yes")) throw new Error("Usage: gu publish [--redraft] [--yes]");
+    if (args.some(arg => !["--redraft", "--yes", "--agent"].includes(arg))) throw new Error("Usage: gu publish [--redraft] [--agent] [--yes]");
     const result = await publish(opts.repoRoot ?? process.cwd(), {
       draftFn: opts.draftFn, log: opts.log,
       redraft: args.includes("--redraft"),
+      agent: args.includes("--agent"),
       ...(args.includes("--yes") ? { confirm: async () => true } : {}),
     });
+    if (result.needsCard) return 2;
     return result.failed.length ? 1 : 0;
   } catch (error) {
     (opts.log ?? console.error)(error instanceof Error ? error.message : String(error));
