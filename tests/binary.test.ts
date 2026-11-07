@@ -32,7 +32,7 @@ test("source status reports an empty home exactly", () => {
 });
 
 test.skipIf(Boolean(buildFailure))("compiled binary reports its version and empty status", () => {
-  for (const [command, output] of [["--version", "0.1.0\n"], ["status", "No tools installed yet.\n"]] as const) {
+  for (const [command, output] of [["--version", "0.1.1\n"], ["status", "No tools installed yet.\n"]] as const) {
     const result = Bun.spawnSync([binary, command], { timeout: 10_000, env: { GU_HOME: home, PATH: "" }, cwd: scratch });
     expect(result.exitCode).toBe(0);
     expect(result.stderr.toString()).toBe("");

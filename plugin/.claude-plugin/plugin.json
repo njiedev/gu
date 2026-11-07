@@ -1,7 +1,7 @@
 {
   "name": "gu",
   "displayName": "gu",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Turn your own scripts and command-line tools into tested tools Claude can find and use in every project.",
   "author": {
     "name": "njiedev",

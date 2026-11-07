@@ -5,7 +5,7 @@ description: Install, list, update or remove tools managed by gu. Use when the u
 
 # Manage gu tools
 
-Run gu as `npx -y @njiedev/gu@0.1.0` (or `gu` if it is on PATH). Below, `gu` means either.
+Run gu as `npx -y @njiedev/gu@0.1.1` (or `gu` if it is on PATH). Below, `gu` means either.
 
 | The user wants to | Run |
 |---|---|

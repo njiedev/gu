@@ -7,7 +7,7 @@ afterAll(() => rmSync(home, { recursive: true, force: true }));
 
 test("gu --version prints the version", async () => {
   const p = Bun.spawnSync(["bun", "src/cli.ts", "--version"], { timeout: 10_000, env: { ...process.env, GU_HOME: home } });
-  expect(p.stdout.toString().trim()).toBe("0.1.0");
+  expect(p.stdout.toString().trim()).toBe("0.1.1");
   expect(p.exitCode).toBe(0);
 });
 

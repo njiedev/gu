@@ -121,7 +121,7 @@ gu is not a sandbox. Installed tools run with your permissions, and `gu install 
 
 ```sh
 bun install
-bun test
+bun run test
 bun run typecheck
 bun run build:npm   # the Node bundle published to npm
 ```

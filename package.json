@@ -1,6 +1,6 @@
 {
   "name": "@njiedev/gu",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "mcpName": "io.github.njiedev/gu",
   "description": "Turn your scripts and CLIs into tested MCP tools for Claude Code, Codex and any MCP client. One command, local, no server to write.",
   "keywords": [
@@ -53,10 +53,10 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
+    "test": "bun test --preload ./tests/setup.ts",
     "build": "bun build --compile src/cli.ts --outfile dist/gu",
     "build:npm": "bun scripts/build-npm.ts",
-    "prepublishOnly": "bun run typecheck && bun test && bun run build:npm"
+    "prepublishOnly": "bun run typecheck && bun run test && bun run build:npm"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

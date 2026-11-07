@@ -7,7 +7,7 @@ description: Turn a command-line tool, script or small repo the user wrote into 
 
 gu turns a folder with a command-line tool into MCP tools (named `<tool>__<command>` under the `gu` server) that Claude can use in every project. A short `gu.yaml` card in the tool's folder says how to call it and how to test it. gu installs a checked copy, sets up its Python or Node dependencies, and runs the test before the tool becomes visible.
 
-Run gu as `npx -y @njiedev/gu@0.1.0` (or `gu` if it is on PATH). Below, `gu` means either.
+Run gu as `npx -y @njiedev/gu@0.1.1` (or `gu` if it is on PATH). Below, `gu` means either.
 
 ## Steps
 

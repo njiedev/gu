@@ -7,7 +7,7 @@
       "name": "gu",
       "source": "./plugin",
       "description": "Turn the command-line tools you write for yourself into tested tools Claude can find and use in every project.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "category": "development"
     }
   ]

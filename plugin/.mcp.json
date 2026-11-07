@@ -2,7 +2,7 @@
   "mcpServers": {
     "gu": {
       "command": "npx",
-      "args": ["-y", "@njiedev/gu@0.1.0", "serve"],
+      "args": ["-y", "@njiedev/gu@0.1.1", "serve"],
       "env": { "GU_PLUGIN": "1" }
     }
   }
