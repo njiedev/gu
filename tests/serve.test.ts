@@ -112,18 +112,19 @@ test("register removes and re-adds gu in every installed agent, then records it"
   const opts = { ...quietLogs, guHome: regHome, which: (cmd: string) => `/bin/${cmd}`, run: async (argv: string[]) => { calls.push(argv); return success; } };
   expect(await register(opts)).toBe(0);
   expect(calls).toEqual([
+    ["claude", "plugin", "list", "--json"],
     ["claude", "mcp", "remove", "--scope", "user", "gu"],
     ["claude", "mcp", "add", "--scope", "user", "gu", "--", ...selfCommand(), "serve"],
     ["codex", "mcp", "remove", "gu"],
     ["codex", "mcp", "add", "gu", "--", ...selfCommand(), "serve"],
   ]);
-  expect(isRegistered(opts)).toBe(true);
+  expect(await isRegistered(opts)).toBe(true);
   // A gu that moved is stale and gets registered again.
   writeFileSync(join(regHome, "registered.json"), JSON.stringify({ command: ["/old/gu"], clients: ["claude", "codex"] }));
-  expect(isRegistered(opts)).toBe(false);
+  expect(await isRegistered(opts)).toBe(false);
   // A newly installed agent also makes the registration incomplete.
   writeFileSync(join(regHome, "registered.json"), JSON.stringify({ command: selfCommand(), clients: ["claude"] }));
-  expect(isRegistered(opts)).toBe(false);
+  expect(await isRegistered(opts)).toBe(false);
   rmSync(regHome, { recursive: true, force: true });
 });
 
@@ -151,7 +152,7 @@ test("after an install, agents are connected right away but a person is asked fi
   const saved = process.env.GU_NO_REGISTER;
   delete process.env.GU_NO_REGISTER;
   try {
-    for (const [interactive, answer, expected] of [[false, false, 4], [true, false, 0], [true, true, 4]] as const) {
+    for (const [interactive, answer, expected] of [[false, false, 5], [true, false, 0], [true, true, 5]] as const) {
       const regHome = mkdtempSync(join(tmpdir(), "gu-reg-"));
       const calls: string[][] = [];
       await ensureRegistered({ ...quietLogs, guHome: regHome, interactive, ask: async () => answer, which: cmd => `/bin/${cmd}`, run: async argv => { calls.push(argv); return success; } });
@@ -220,3 +221,31 @@ test("tells a connected agent when a tool is installed, so it appears without a 
     rmSync(watchHome, { recursive: true, force: true });
   }
 }, 30_000);
+
+test("with the gu plugin installed, Claude Code is not given a second gu entry", async () => {
+  const regHome = mkdtempSync(join(tmpdir(), "gu-reg-"));
+  const calls: string[][] = [];
+  let pluginInstalled = true;
+  const plugins = () => JSON.stringify(pluginInstalled ? [{ id: "gu@gu", enabled: true, mcpServers: { gu: { command: "npx", env: { GU_PLUGIN: "1" } } } }] : []);
+  const opts = { ...quietLogs, guHome: regHome, which: (cmd: string) => `/bin/${cmd}`, run: async (argv: string[]) => {
+    calls.push(argv);
+    return argv[1] === "plugin" ? { ...success, stdout: plugins() } : success;
+  } };
+  expect(await register(opts)).toBe(0);
+  // The old user-scope entry is removed and not re-added; Codex is still registered.
+  expect(calls).toContainEqual(["claude", "mcp", "remove", "--scope", "user", "gu"]);
+  expect(calls.some(argv => argv[0] === "claude" && argv[2] === "add")).toBe(false);
+  expect(calls.some(argv => argv[0] === "codex" && argv[2] === "add")).toBe(true);
+  expect(await isRegistered(opts)).toBe(true);
+  // Uninstalling the plugin makes gu register Claude Code directly again.
+  pluginInstalled = false;
+  expect(await isRegistered(opts)).toBe(false);
+  rmSync(regHome, { recursive: true, force: true });
+});
+
+test("a gu run through npx registers the npx command, not npx's temporary cache", async () => {
+  const { registrationCommand } = await import("../src/commands/register");
+  const { VERSION } = await import("../src/version");
+  expect(registrationCommand(["/usr/bin/node", "/home/me/.npm/_npx/abc/node_modules/@njiedev/gu/dist/cli.js"])).toEqual(["npx", "-y", `@njiedev/gu@${VERSION}`]);
+  expect(registrationCommand(["/usr/local/bin/gu"])).toEqual(["/usr/local/bin/gu"]);
+});

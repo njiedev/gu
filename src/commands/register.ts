@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { runCommand, type RunResult } from "../core/run";
 import { guHome } from "../paths";
 import { which } from "../which";
+import { VERSION } from "../version";
 
 export function selfCommand(): string[] {
   const here = fileURLToPath(import.meta.url);
@@ -13,6 +14,25 @@ export function selfCommand(): string[] {
   // From source (src/commands) or from the npm bundle (dist/cli.js).
   const entry = here.endsWith(".ts") ? resolve(dirname(here), "../cli.ts") : resolve(dirname(here), "cli.js");
   return [process.execPath, entry];
+}
+
+/**
+ * The command agents should launch. A gu run through npx lives in a cache npm
+ * may delete, so register the npx command itself instead of that path.
+ */
+export function registrationCommand(self = selfCommand()): string[] {
+  return self.some(part => /[\\/]_npx[\\/]/.test(part)) ? ["npx", "-y", `@njiedev/gu@${VERSION}`] : self;
+}
+
+/** Whether Claude Code already runs gu through the gu plugin. */
+export async function claudePluginActive(run: (argv: string[]) => Promise<RunResult>, find: (cmd: string) => string | null): Promise<boolean> {
+  if (!find("claude")) return false;
+  const listed = await run(["claude", "plugin", "list", "--json"]);
+  if (listed.timedOut || listed.exitCode !== 0) return false;
+  try {
+    const plugins = JSON.parse(listed.stdout) as { enabled?: boolean; mcpServers?: Record<string, { env?: Record<string, string> }> }[];
+    return plugins.some(plugin => plugin.enabled !== false && Object.values(plugin.mcpServers ?? {}).some(server => server.env?.GU_PLUGIN === "1"));
+  } catch { return false; }
 }
 
 function shellQuote(arg: string): string {
@@ -39,7 +59,7 @@ export const CLIENTS: Client[] = [
   },
 ];
 
-interface Registration { command: string[]; clients: string[] }
+interface Registration { command: string[]; clients: string[]; claudePlugin?: boolean }
 const registrationFile = (home: string) => join(home, "registered.json");
 
 function readRegistration(home: string): Registration | undefined {
@@ -64,19 +84,22 @@ export async function register(opts: Opts = {}): Promise<number> {
   const error = opts.error ?? console.error;
   const find = opts.which ?? which;
   const run = opts.run ?? (argv => runCommand(argv, { cwd: process.cwd(), timeoutSec: 120 }));
-  const command = selfCommand();
+  const command = registrationCommand();
   const present = CLIENTS.filter(client => find(client.program));
-  if (command.some(part => /[\\/]_npx[\\/]/.test(part))) {
-    error("Warning: gu is running from npx's temporary cache, which npm may delete. Install it for good with npm install -g @njiedev/gu, then run gu register.");
-  }
   if (!present.length) {
     log(`Neither Claude Code nor Codex was found on PATH. After installing one, run gu register, or run one of these:\n${CLIENTS.map(client => client.add(command).map(shellQuote).join(" ")).join("\n")}\nAny other MCP client can launch: ${[...command, "serve"].map(shellQuote).join(" ")}`);
     return 0;
   }
   const registered: string[] = [];
   let failure = 0;
+  const viaPlugin = await claudePluginActive(run, find);
   for (const client of present) {
     await run(client.remove); // Absent entries fail harmlessly.
+    if (client.program === "claude" && viaPlugin) {
+      // A second gu entry would show Claude every tool twice.
+      log("Claude Code gets gu from the gu plugin, so gu did not add a separate entry.");
+      continue;
+    }
     const result = await run(client.add(command));
     if (result.stdout) log(result.stdout.trimEnd());
     if (result.stderr) error(result.stderr.trimEnd());
@@ -88,21 +111,24 @@ export async function register(opts: Opts = {}): Promise<number> {
     registered.push(client.program);
     log(`Registered gu with ${client.name}.`);
   }
-  if (registered.length) {
-    log("Start a new session in your agent to use gu's tools: agents load MCP servers when a session starts.");
+  if (registered.length) log("Start a new session in your agent to use gu's tools: agents load MCP servers when a session starts.");
+  if (registered.length || viaPlugin) {
     const home = opts.guHome ?? guHome();
     mkdirSync(home, { recursive: true });
-    writeFileSync(registrationFile(home), JSON.stringify({ command, clients: registered } satisfies Registration, null, 2) + "\n");
+    writeFileSync(registrationFile(home), JSON.stringify({ command, clients: registered, claudePlugin: viaPlugin } satisfies Registration, null, 2) + "\n");
   }
   return failure;
 }
 
-/** True when every installed agent already points at this gu. */
-export function isRegistered(opts: Pick<Opts, "which" | "guHome"> = {}): boolean {
+/** True when every installed agent already reaches this gu, exactly once. */
+export async function isRegistered(opts: Pick<Opts, "which" | "guHome" | "run"> = {}): Promise<boolean> {
   const saved = readRegistration(opts.guHome ?? guHome());
-  if (!saved || JSON.stringify(saved.command) !== JSON.stringify(selfCommand())) return false;
+  if (!saved || JSON.stringify(saved.command) !== JSON.stringify(registrationCommand())) return false;
   const find = opts.which ?? which;
-  return CLIENTS.every(client => !find(client.program) || saved.clients.includes(client.program));
+  const run = opts.run ?? (argv => runCommand(argv, { cwd: process.cwd(), timeoutSec: 30 }));
+  // The plugin may have been installed or removed since gu last registered.
+  if (find("claude") && await claudePluginActive(run, find) !== Boolean(saved.claudePlugin)) return false;
+  return CLIENTS.every(client => !find(client.program) || saved.clients.includes(client.program) || (client.program === "claude" && saved.claudePlugin));
 }
 
 function askYes(question: string): Promise<boolean> {
@@ -120,7 +146,7 @@ function askYes(question: string): Promise<boolean> {
 export async function ensureRegistered(opts: Opts & { interactive?: boolean; ask?: (q: string) => Promise<boolean> } = {}): Promise<void> {
   if (process.env.GU_NO_REGISTER) return;
   const log = opts.log ?? console.log;
-  if (isRegistered(opts)) {
+  if (await isRegistered(opts)) {
     log("Agents already connected to gu see new and updated tools in their current session.");
     return;
   }
