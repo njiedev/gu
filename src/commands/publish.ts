@@ -1,5 +1,6 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { findCards } from "../manifest/find";
 import { createInterface } from "node:readline";
 import { draft, type DraftResult, type Unsupported } from "../draft/drafter";
 import { writeDraft } from "../draft/write";
@@ -9,17 +10,6 @@ import { apiModelConfigured } from "../llm/from-env";
 import { AGENT_GUIDE } from "../draft/prompt";
 import { ensureRegistered } from "./register";
 
-const excluded = new Set([".git", "node_modules", ".venv", "__pycache__", "dist", "build"]);
-function existingFolders(root: string): string[] {
-  const folders: string[] = [];
-  function visit(dir: string) {
-    const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
-    if (entries.some(entry => entry.name === "gu.yaml" && entry.isFile())) folders.push(relative(root, dir) || ".");
-    for (const entry of entries) if (entry.isDirectory() && !excluded.has(entry.name)) visit(join(dir, entry.name));
-  }
-  visit(root);
-  return folders;
-}
 function summarize(r: DraftResult): string {
   const lines = ["Here is the proposed draft:"];
   for (const { folder, manifest, yamlText } of r.tools) {
@@ -59,7 +49,7 @@ export async function publish(repoRoot: string, opts: {
   const installed: string[] = [];
   const failed: { folder: string; message: string }[] = [];
   let unsupported: Unsupported[] = [];
-  let folders = opts.redraft ? [] : existingFolders(root);
+  let folders = opts.redraft ? [] : findCards(root);
   let drafted: DraftResult | undefined;
   let summary: string;
   if (!folders.length) {

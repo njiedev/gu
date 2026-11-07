@@ -13,7 +13,7 @@ switch (process.argv[2]) {
     break;
   }
   case "install":
-    process.exitCode = await installCommand(process.argv[3]);
+    process.exitCode = await installCommand(process.argv.slice(3));
     break;
   case "status":
     process.exitCode = statusCommand();
