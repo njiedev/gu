@@ -15,8 +15,14 @@ const home = join(scratch, "home");
 const bundle = join(root, "dist", "cli.js");
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
-test("package.json and the CLI agree on the version", () => {
-  expect(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version).toBe(VERSION);
+test("package.json, the CLI and the Claude Code plugin agree on the version", () => {
+  const json = (path: string) => JSON.parse(readFileSync(join(root, path), "utf8"));
+  expect(json("package.json").version).toBe(VERSION);
+  expect(json("plugin/.claude-plugin/plugin.json").version).toBe(VERSION);
+  expect(json(".claude-plugin/marketplace.json").plugins[0].version).toBe(VERSION);
+  // The plugin runs exactly this release from npm.
+  expect(json("plugin/.mcp.json").mcpServers.gu.args).toContain(`@njiedev/gu@${VERSION}`);
+  for (const skill of ["publish", "manage"]) expect(readFileSync(join(root, "plugin/skills", skill, "SKILL.md"), "utf8")).toContain(`@njiedev/gu@${VERSION}`);
 });
 
 test.skipIf(!node)("the Node bundle installs a tool and serves it over MCP", async () => {

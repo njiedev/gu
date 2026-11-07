@@ -1,0 +1,10 @@
+{
+  "name": "gu",
+  "version": "0.1.0",
+  "description": "Turn the command-line tools you write for yourself into tested tools Claude can find and use in every project.",
+  "author": { "name": "njiedev", "url": "https://github.com/njiedev" },
+  "homepage": "https://github.com/njiedev/gu#readme",
+  "repository": "https://github.com/njiedev/gu",
+  "license": "Apache-2.0",
+  "keywords": ["mcp", "tools", "cli", "scripts", "automation"]
+}

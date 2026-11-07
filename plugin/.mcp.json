@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "gu": {
+      "command": "npx",
+      "args": ["-y", "@njiedev/gu@0.1.0", "serve"],
+      "env": { "GU_PLUGIN": "1" }
+    }
+  }
+}

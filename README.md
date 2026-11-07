@@ -8,6 +8,16 @@ Everything runs on your machine, on macOS and Linux. Nothing is uploaded to a re
 
 ## Install
 
+**In Claude Code**, install the plugin:
+
+```
+/plugin install gu --marketplace njiedev/gu
+```
+
+On Claude Code versions older than 2.1.275, run `/plugin marketplace add njiedev/gu` and then `/plugin install gu@gu`. The plugin starts gu's MCP server and teaches Claude when and how to publish your tools, so you can just say "publish ~/code/my-tool". It needs Node 20 or newer.
+
+**Anywhere else** (Codex, other MCP clients, or your own terminal):
+
 ```sh
 npm install -g @njiedev/gu     # needs Node 20 or newer
 ```
