@@ -3,9 +3,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { ArgError, buildArgv, findTool, toMcpTools } from "../core/tools";
 import { killAllActive, runCommand, toolEnv } from "../core/run";
+import { statSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { changedFiles, describeOutputs, mentionedImages, snapshot } from "../core/outputs";
-import { discoverInstalled } from "../manifest/discover";
+import { discoverInstalled, INSTALLED_MARKER } from "../manifest/discover";
 import { staleNote } from "../install/staleness";
 import { guHome } from "../paths";
 import { VERSION } from "../version";
@@ -13,7 +15,7 @@ import { VERSION } from "../version";
 export async function startStdioServer(opts: { guHome?: string; callerCwd?: string } = {}): Promise<void> {
   const home = opts.guHome ?? guHome();
   const callerCwd = opts.callerCwd ?? process.cwd();
-  const server = new Server({ name: "gu", version: VERSION }, { capabilities: { tools: {} } });
+  const server = new Server({ name: "gu", version: VERSION }, { capabilities: { tools: { listChanged: true } } });
   const discover = () => {
     const { tools, problems } = discoverInstalled(home);
     for (const problem of problems) console.error(`${problem.path}: ${problem.errors.join("; ")}`);
@@ -75,4 +77,18 @@ export async function startStdioServer(opts: { guHome?: string; callerCwd?: stri
   process.stdin.once("end", () => shutdown(0));
   server.onclose = () => shutdown(0);
   await server.connect(new StdioServerTransport());
+
+  // Tell the agent when a tool is installed, updated or removed, so it shows
+  // up in the session already running instead of only in the next one.
+  const fingerprint = () => discoverInstalled(home).tools
+    .map(({ manifest, dir }) => { try { return `${manifest.name}@${dir}@${statSync(join(dir, INSTALLED_MARKER)).mtimeMs}`; } catch { return manifest.name; } })
+    .join("\n");
+  let known = fingerprint();
+  const watcher = setInterval(() => {
+    const now = fingerprint();
+    if (now === known) return;
+    known = now;
+    server.sendToolListChanged().catch(() => {});
+  }, Number(process.env.GU_POLL_MS) || 2000);
+  watcher.unref();
 }

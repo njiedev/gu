@@ -200,3 +200,23 @@ test("reports files the tool wrote in the caller's folder and attaches images", 
   expect(existsSync(join(caller, "out.png"))).toBe(true);
   rmSync(join(caller, "out.png"));
 });
+
+test("tells a connected agent when a tool is installed, so it appears without a new session", async () => {
+  const { ToolListChangedNotificationSchema } = await import("@modelcontextprotocol/sdk/types.js");
+  const watchHome = realpathSync(mkdtempSync(join(tmpdir(), "gu-watch-")));
+  const watcher = new Client({ name: "gu-watch-test", version: "1" });
+  let changed = 0;
+  watcher.setNotificationHandler(ToolListChangedNotificationSchema, async () => { changed++; });
+  await watcher.connect(new StdioClientTransport({ command: process.execPath, args: [cli, "serve"], env: { GU_HOME: watchHome, GU_POLL_MS: "100" }, cwd: caller, stderr: "pipe" }));
+  try {
+    expect((await watcher.listTools()).tools).toEqual([]);
+    const result = await installTool(join(import.meta.dir, "fixtures/tools/node-echo"), { guHome: watchHome });
+    expect(result.ok).toBe(true);
+    for (let i = 0; i < 100 && !changed; i++) await Bun.sleep(20);
+    expect(changed).toBe(1);
+    expect((await watcher.listTools()).tools.map(tool => tool.name)).toEqual(["node-echo__echo"]);
+  } finally {
+    await watcher.close();
+    rmSync(watchHome, { recursive: true, force: true });
+  }
+}, 30_000);

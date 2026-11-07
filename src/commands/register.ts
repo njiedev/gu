@@ -89,6 +89,7 @@ export async function register(opts: Opts = {}): Promise<number> {
     log(`Registered gu with ${client.name}.`);
   }
   if (registered.length) {
+    log("Start a new session in your agent to use gu's tools: agents load MCP servers when a session starts.");
     const home = opts.guHome ?? guHome();
     mkdirSync(home, { recursive: true });
     writeFileSync(registrationFile(home), JSON.stringify({ command, clients: registered } satisfies Registration, null, 2) + "\n");
@@ -117,8 +118,12 @@ function askYes(question: string): Promise<boolean> {
  * connected right away; a person in a terminal is asked first.
  */
 export async function ensureRegistered(opts: Opts & { interactive?: boolean; ask?: (q: string) => Promise<boolean> } = {}): Promise<void> {
-  if (process.env.GU_NO_REGISTER || isRegistered(opts)) return;
+  if (process.env.GU_NO_REGISTER) return;
   const log = opts.log ?? console.log;
+  if (isRegistered(opts)) {
+    log("Agents already connected to gu see new and updated tools in their current session.");
+    return;
+  }
   const interactive = opts.interactive ?? Boolean(process.stdin.isTTY && process.stdout.isTTY);
   if (interactive && !await (opts.ask ?? askYes)("Connect gu to your agents (Claude Code, Codex) now? (Y/n) ")) {
     log("Skipped. Run `gu register` when you want your agents to see these tools.");
