@@ -27,6 +27,8 @@ export async function installTool(srcDir: string, opts: {
   guHome?: string; dependencyTimeoutSec?: number; log?: (s: string) => void;
   /** Ask for a missing secret; defaults to a hidden prompt in a terminal and to nothing otherwise. */
   askSecret?: (name: string, tool: string) => Promise<string | undefined>;
+  /** Where the tool came from when the source folder is temporary, such as a GitHub clone. */
+  origin?: string;
 } = {}): Promise<InstallResult> {
   let parsed;
   try { parsed = parseManifest(readFileSync(join(srcDir, "gu.yaml"), "utf8")); }
@@ -118,7 +120,7 @@ export async function installTool(srcDir: string, opts: {
     stage = "smoke";
     const smoke = await runSmokeTest(loaded, home);
     if (!smoke.passed) throw new Error(`Test failed after ${(smoke.run.durationMs / 1000).toFixed(2)} seconds. ` + smoke.checks.filter(check => !check.passed).map(check => check.detail).join(" ") + (smoke.run.stderr ? ` ${smoke.run.stderr.trim()}` : ""));
-    writeFileSync(join(dir, INSTALLED_MARKER), new Date().toISOString() + "\n");
+    writeFileSync(join(dir, INSTALLED_MARKER), JSON.stringify(opts.origin ? { installedAt: new Date().toISOString(), origin: opts.origin } : { installedAt: new Date().toISOString(), source }) + "\n");
     published = { ok: true, loaded, smoke };
   } catch (error) {
     let cleanup = "";
@@ -137,6 +139,14 @@ export async function installTool(srcDir: string, opts: {
     try { rmSync(previousDir, { recursive: true, force: true }); }
     catch (error) {
       try { opts.log?.(`Installed, but could not remove the old copy at ${previousDir}: ${message(error)}`); } catch {}
+    }
+  }
+  // One version per tool: older and newer copies would otherwise shadow or outlive this one.
+  for (const entry of readdirSync(dirname(dir), { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === basename(dir) || !/^\d+$/.test(entry.name)) continue;
+    try { rmSync(join(dirname(dir), entry.name), { recursive: true, force: true }); }
+    catch (error) {
+      try { opts.log?.(`Installed, but could not remove version ${entry.name}: ${message(error)}`); } catch {}
     }
   }
   return published;

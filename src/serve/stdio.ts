@@ -6,6 +6,7 @@ import { killAllActive, runCommand, toolEnv } from "../core/run";
 import { fileURLToPath } from "node:url";
 import { changedFiles, describeOutputs, mentionedImages, snapshot } from "../core/outputs";
 import { discoverInstalled } from "../manifest/discover";
+import { staleNote } from "../install/staleness";
 import { guHome } from "../paths";
 import { VERSION } from "../version";
 
@@ -60,7 +61,9 @@ export async function startStdioServer(opts: { guHome?: string; callerCwd?: stri
     const outputs = describeOutputs(cwd, changedFiles(cwd, before), mentionedImages(run.stdout, cwd));
     const text = run.stdout + (run.stderr ? `\n--- stderr ---\n${run.stderr}` : "") +
       (run.timedOut ? `\n[timed out after ${tool.timeout}s]` : `\n[exit code ${run.exitCode}]`) + outputs.note;
-    return { content: [{ type: "text" as const, text }, ...outputs.images], isError: run.exitCode !== 0 || run.timedOut };
+    // Tell the agent when it ran an old copy, so it can offer to update it.
+    const stale = staleNote(loaded.dir);
+    return { content: [{ type: "text" as const, text: stale ? `${text}\n[gu: ${stale}]` : text }, ...outputs.images], isError: run.exitCode !== 0 || run.timedOut };
   });
   server.onerror = error => console.error(error.message);
   const shutdown = (code: number) => {

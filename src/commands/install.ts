@@ -95,7 +95,7 @@ export async function installCommand(args: string[], opts: Opts = {}): Promise<n
     let failed = invalid;
     let installed = 0;
     for (const card of cards) {
-      const result = await installTool(join(checkout, card.folder), { guHome: opts.guHome, log });
+      const result = await installTool(join(checkout, card.folder), { guHome: opts.guHome, log, origin: `${github.label}${card.folder === "." ? "" : ` (${card.folder})`}` });
       if (result.ok) { installed++; log(`Installed ${card.manifest.name}. It passed its test.`); }
       else { failed++; error(result.message); }
     }

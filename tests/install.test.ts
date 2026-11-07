@@ -339,3 +339,31 @@ test("declared secrets are asked for once, stored privately, and given only to t
   expect(toolEnv(other, home).GU_TEST_TOKEN).toBeUndefined();
   rmSync(source, { recursive: true, force: true });
 });
+
+test("installing keeps exactly one version, uninstall removes the tool, and edits to the source are flagged", async () => {
+  const { staleNote } = await import("../src/install/staleness");
+  const { uninstallCommand } = await import("../src/commands/uninstall");
+  const { statusCommand } = await import("../src/commands/status");
+  const source = mkdtempSync(join(tmpdir(), "gu-versions-"));
+  cpSync(fixture("node-echo"), source, { recursive: true });
+  const card = (version: number) => readFileSync(join(fixture("node-echo"), "gu.yaml"), "utf8").replace("version: 1", `version: ${version}`);
+  writeFileSync(join(source, "gu.yaml"), card(3));
+  expect((await installTool(source, { guHome: home })).ok).toBe(true);
+  writeFileSync(join(source, "gu.yaml"), card(2));
+  const second = await installTool(source, { guHome: home });
+  expect(second.ok).toBe(true);
+  // Going back to version 2 must not leave version 3 shadowing it.
+  expect(readdirSync(join(home, "tools", "node-echo"))).toEqual(["2"]);
+  if (!second.ok) return;
+  expect(staleNote(second.loaded.dir)).toBeUndefined();
+  const later = new Date(Date.now() + 5000);
+  utimesSync(join(source, "echo.js"), later, later);
+  expect(staleNote(second.loaded.dir)).toContain(`gu install ${realpathSync(source)}`);
+  const lines: string[] = [];
+  statusCommand(home, s => lines.push(s));
+  expect(lines.join("\n")).toContain("out of date");
+  expect(uninstallCommand(["node-echo"], home, () => {}, () => {})).toBe(0);
+  expect(existsSync(join(home, "tools", "node-echo"))).toBe(false);
+  expect(uninstallCommand(["node-echo"], home, () => {}, () => {})).toBe(1);
+  rmSync(source, { recursive: true, force: true });
+});

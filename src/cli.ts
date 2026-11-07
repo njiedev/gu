@@ -3,6 +3,7 @@
 import { publishCommand } from "./commands/publish";
 import { installCommand } from "./commands/install";
 import { statusCommand } from "./commands/status";
+import { uninstallCommand } from "./commands/uninstall";
 import { register } from "./commands/register";
 import { startStdioServer } from "./serve/stdio";
 import { VERSION } from "./version";
@@ -14,6 +15,9 @@ switch (process.argv[2]) {
   }
   case "install":
     process.exitCode = await installCommand(process.argv.slice(3));
+    break;
+  case "uninstall":
+    process.exitCode = uninstallCommand(process.argv.slice(3));
     break;
   case "status":
     process.exitCode = statusCommand();
@@ -28,6 +32,6 @@ switch (process.argv[2]) {
     console.log(VERSION);
     break;
   default:
-    console.error("Usage: gu <publish | install | status | serve | register>");
+    console.error("Usage: gu <publish | install | uninstall | status | serve | register>");
     process.exit(1);
 }
