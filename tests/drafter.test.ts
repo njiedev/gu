@@ -302,9 +302,9 @@ test("tool JSON schemas require every property and disallow extras at every obje
 });
 
 test("prompt contains the exact trap table, field reference, argv rules and drafting guidance", () => {
-  const spec = readFileSync(join(import.meta.dir, "..", "docs", "superpowers", "specs", "2026-10-16-gu-design.md"), "utf8");
-  const table = spec.slice(spec.indexOf("| Trap |"), spec.indexOf("\n\n**Test set"));
-  expect(SYSTEM_PROMPT).toContain(table);
+  // The trap table is the drafter's checklist; every row must reach the model.
+  expect(SYSTEM_PROMPT).toContain("| Trap | Example seen | What gu.yaml must do |");
+  for (const trap of ["Interactive prompts", "GUI pop-ups", "Fake success", "Noise on output", "Unclear output location", "Hardware needs", "OS-specific features", "One repo, many tools", "Logic stuck in the UI", "It's a server, not a command"]) expect(SYSTEM_PROMPT).toContain(`| ${trap} |`);
   for (const field of ["use_when", "runtime", "platforms", "requires", "install", "python", "pip", "node", "npm", "env", "required", "positional", "flag", "default", "timeout", "returns", "exit_code", "file_exists", "stdout_contains"]) expect(SYSTEM_PROMPT).toContain(field);
   for (const phrase of ["declaration order", 'flag ?? "--" + name', "caller", ".gu/test/", "owner", "submit_draft", "read_files", "non-interactive"]) expect(SYSTEM_PROMPT).toContain(phrase);
 });

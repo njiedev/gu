@@ -89,7 +89,7 @@ test("toMcpTools builds names, schema and required list", () => {
 test("schema handles optional descriptions, booleans and inferred required fields", () => {
   const tool = { ...custom({ value: { type: "string" }, file: { type: "path", required: false }, enabled: { type: "boolean", default: false }, explicit: { type: "number", required: true, default: 0 } }), description: " Grade a clip.", returns: undefined };
   const [def] = toMcpTools([{ ...colorgradeLoaded, manifest: { ...manifest, tools: [tool] } }]);
-  expect(def.description).toBe(`${manifest.description}${tool.description}\nUse when: ${manifest.use_when}`);
+  expect(def.description).toBe(`${manifest.description}\nGrade a clip.\nUse when: ${manifest.use_when}`);
   expect(def.inputSchema.required).toEqual(["value", "explicit"]);
   expect(def.inputSchema.properties.file).toEqual({ type: "string", description: " (file path)" });
   expect(def.inputSchema.properties.enabled).toEqual({ type: "boolean", default: false });

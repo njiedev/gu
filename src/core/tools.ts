@@ -84,7 +84,7 @@ export function mcpName(loaded: LoadedTool, tool: ToolSpec): string {
 export function toMcpTools(tools: LoadedTool[]): McpToolDef[] {
   return tools.flatMap(loaded => loaded.manifest.tools.map(tool => ({
     name: mcpName(loaded, tool),
-    description: loaded.manifest.description + (tool.description ?? "") +
+    description: loaded.manifest.description.trim() + (tool.description?.trim() ? `\n${tool.description.trim()}` : "") +
       `\nUse when: ${loaded.manifest.use_when}` + (tool.returns ? `\nReturns: ${tool.returns}` : ""),
     inputSchema: {
       type: "object" as const,
