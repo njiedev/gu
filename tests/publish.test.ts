@@ -19,14 +19,16 @@ beforeEach(() => {
   oldHome = process.env.GU_HOME; process.env.GU_HOME = guHome;
   cpSync(join(import.meta.dir, "fixtures/tools/py-echo"), repo, { recursive: true }); rmSync(join(repo, "gu.yaml"));
 });
+const shown: string[] = [];
+const show = (line: string) => { shown.push(line); };
 afterEach(() => { rmSync(temp, { recursive: true, force: true }); if (oldHome === undefined) delete process.env.GU_HOME; else process.env.GU_HOME = oldHome; });
 test("declining writes nothing and runs no fixture command", async () => {
   const drafted = result(); drafted.fixtures.push({ folder: ".", path: ".gu/test/command.txt", command: `node -e 'require("fs").writeFileSync("marker", "ran")'` });
-  const r = await publish(repo, { draftFn: async () => drafted, confirm: async summary => {
+  const r = await publish(repo, { draftFn: async () => drafted, confirm: async () => { const summary = shown.at(-1) ?? "";
     expect(summary).toContain("py-echo"); expect(summary).toContain("Echo a string"); expect(summary).toContain("python3 echo.py");
     expect(summary).toContain(drafted.fixtures[1]!.command!); expect(summary).toContain("AI looked at 2 of 3 files");
     expect(existsSync(join(repo, "gu.yaml"))).toBe(false); return false;
-  }, guHome, log: quiet });
+  }, guHome, log: show });
   expect(existsSync(join(repo, "gu.yaml"))).toBe(false); expect(existsSync(join(repo, ".gu"))).toBe(false); expect(existsSync(join(repo, "marker"))).toBe(false); expect(r.installed).toEqual([]);
 });
 test("accepting writes gu.yaml + fixtures and installs", async () => {
@@ -47,7 +49,7 @@ test("existing nested gu.yaml is installed after confirmation without drafting a
 test("unsupported folders are reported, not installed; redraft bypasses existing manifests", async () => {
   writeFileSync(join(repo, "gu.yaml"), yamlText);
   const drafted = result(); drafted.tools = []; drafted.fixtures = []; drafted.unsupported = [{ folder: "server", kind: "server", reason: "Needs a running server" }];
-  const r = await publish(repo, { redraft: true, draftFn: async () => drafted, confirm: async summary => { expect(summary).toContain("server: Needs a running server"); return true; }, guHome, log: quiet });
+  const r = await publish(repo, { redraft: true, draftFn: async () => drafted, confirm: async () => { const summary = shown.at(-1) ?? ""; expect(summary).toContain("server: Needs a running server"); return true; }, guHome, log: show });
   expect(r.unsupported).toEqual(drafted.unsupported); expect(r.installed).toEqual([]);
 });
 test("writeDraft runs commands in the tool folder without a shell and reports failures", async () => {
@@ -120,15 +122,16 @@ test("--yes writes the draft without prompting", async () => {
 test("declining existing manifests lists name version and folder and installs nothing", async () => {
   writeFileSync(join(repo, "gu.yaml"), yamlText);
   let confirmed = false;
-  const r = await publish(repo, { draftFn: async () => { throw new Error("should not draft"); }, confirm: async summary => {
+  const r = await publish(repo, { draftFn: async () => { throw new Error("should not draft"); }, confirm: async () => { const summary = shown.at(-1) ?? "";
     confirmed = true;
     expect(summary).toContain("py-echo");
     expect(summary).toContain("version 1");
     expect(summary).toContain("folder: .");
     expect(summary).toContain("installed and tested");
+    expect(summary).not.toContain("proposed");
     expect(existsSync(guHome)).toBe(false);
     return false;
-  }, guHome, log: quiet });
+  }, guHome, log: show });
   expect(confirmed).toBe(true);
   expect(r.installed).toEqual([]);
   expect(existsSync(guHome)).toBe(false);
@@ -211,12 +214,20 @@ test("I4 writeDraft refuses system installers before executing them", async () =
 test("M2 approval includes full YAML and fixture paths with UTF-8 sizes", async () => {
   const drafted = result();
   drafted.fixtures[0].content = "é😀 private fixture text";
-  await publish(repo, { draftFn: async () => drafted, confirm: async summary => {
+  await publish(repo, { draftFn: async () => drafted, confirm: async () => { const summary = shown.at(-1) ?? "";
     expect(summary).toContain(yamlText);
     expect(summary).toContain("gu.yaml");
     expect(summary).toContain(".gu/test/input.txt");
     expect(summary).toContain(`${Buffer.byteLength(drafted.fixtures[0].content!)} bytes`);
     expect(summary).not.toContain(drafted.fixtures[0].content!);
     return false;
-  }, guHome, log: quiet });
+  }, guHome, log: show });
+});
+test("a publish nobody can confirm fails and says how to install without asking", () => {
+  writeFileSync(join(repo, "gu.yaml"), yamlText);
+  const child = Bun.spawnSync([process.execPath, resolve("src/cli.ts"), "publish"], { timeout: 10_000, cwd: repo, env: { ...process.env, GU_HOME: guHome }, stdin: "ignore" });
+  expect(child.exitCode).toBe(1);
+  expect(child.stdout.toString()).toContain("Install and test these tools? (y/N)");
+  expect(child.stdout.toString()).toContain("Run gu publish --yes");
+  expect(existsSync(join(guHome, "tools"))).toBe(false);
 });

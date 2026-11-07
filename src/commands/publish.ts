@@ -26,24 +26,24 @@ function summarize(r: DraftResult): string {
   lines.push(`AI looked at ${r.filesSent} of ${r.totalFiles} files`);
   return lines.join("\n");
 }
-function confirmOnStdin(_summary: string): Promise<boolean> {
+function confirmOnStdin(question: string): Promise<boolean> {
   return new Promise(resolve => {
     const input = createInterface({ input: process.stdin, output: process.stdout });
     input.once("close", () => resolve(false));
-    input.question("Proceed with the proposed files and install and test the tools? (y/N) ", answer => {
+    input.question(question, answer => {
       resolve(/^(y|yes)$/i.test(answer.trim())); input.close();
     });
   });
 }
 export async function publish(repoRoot: string, opts: {
   draftFn?: typeof draft;
-  confirm?: (summary: string) => Promise<boolean>;
+  confirm?: (question: string) => Promise<boolean>;
   guHome?: string;
   redraft?: boolean;
   /** Have the coding agent write the card even when an API model is configured. */
   agent?: boolean;
   log?: (s: string) => void;
-} = {}): Promise<{ installed: string[]; failed: { folder: string; message: string }[]; unsupported: Unsupported[]; needsCard?: boolean }> {
+} = {}): Promise<{ installed: string[]; failed: { folder: string; message: string }[]; unsupported: Unsupported[]; needsCard?: boolean; cancelled?: boolean }> {
   const root = resolve(repoRoot);
   const log = opts.log ?? console.log;
   const installed: string[] = [];
@@ -76,9 +76,15 @@ export async function publish(repoRoot: string, opts: {
     summary = lines.join("\n");
   }
   log(summary);
-  if (!await (opts.confirm ?? confirmOnStdin)(summary)) {
-    log("Cancelled. No files were written or tools installed.");
-    return { installed, failed, unsupported };
+  const question = drafted
+    ? "Write these files, then install and test the tools? (y/N) "
+    : "Install and test these tools? (y/N) ";
+  if (!await (opts.confirm ?? confirmOnStdin)(question)) {
+    // An agent's shell has no keyboard, so the question reads as "no". Say how to go on.
+    log(process.stdin.isTTY
+      ? "Cancelled. No files were written or tools installed."
+      : "Nothing was installed: there was no one to answer the question. Run gu publish --yes to install without asking.");
+    return { installed, failed, unsupported, cancelled: true };
   }
   if (drafted) {
     const written = await writeDraft(root, drafted);
@@ -126,6 +132,7 @@ export async function publishCommand(args: string[], opts: {
       ...(args.includes("--yes") ? { confirm: async () => true } : {}),
     });
     if (result.needsCard) return 2;
+    if (result.cancelled) return 1;
     if (result.installed.length) await (opts.register ?? (() => ensureRegistered({ log: opts.log })))();
     return result.failed.length ? 1 : 0;
   } catch (error) {

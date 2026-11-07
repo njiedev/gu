@@ -89,7 +89,7 @@ export async function installCommand(args: string[], opts: Opts = {}): Promise<n
       ...cards.map(card => describeCard(card.folder, card.manifest)),
     ].join("\n"));
     if (!yes && !await (opts.confirm ?? confirm)("Only continue if you trust this repository. Install? (y/N) ")) {
-      log("Cancelled. Nothing was installed.");
+      log(process.stdin.isTTY ? "Cancelled. Nothing was installed." : "Nothing was installed: there was no one to answer the question. Add --yes to install without asking.");
       return 1;
     }
     let failed = invalid;
